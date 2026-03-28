@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distraction Save</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div class="header">
+      <span class="logo">🛡️</span>
+      <div class="header-text">
+        <h1>Distraction Save</h1>
+        <p id="status-text">활성화됨</p>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="main-toggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="today-count">0</div>
+        <div class="stat-label">오늘 절약</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="today-minutes">0분</div>
+        <div class="stat-label">아낀 시간</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-value" id="total-points">0</div>
+        <div class="stat-label">포인트</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <label class="section-label">대체 목적지</label>
+      <input type="url" id="alt-url" placeholder="https://millie.co.kr" />
+      <p class="hint">비워두면 이전 페이지로 이동</p>
+    </div>
+
+    <div class="footer">
+      <button id="stats-btn">전체 통계 보기</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

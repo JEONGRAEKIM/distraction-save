@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>통계 — Distraction Save</title>
+  <link rel="stylesheet" href="stats.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>🛡️ Distraction Save</h1>
+      <p class="subtitle">내가 아낀 시간들</p>
+    </header>
+
+    <div class="summary-grid">
+      <div class="summary-card accent">
+        <div class="summary-value" id="total-saved">0분</div>
+        <div class="summary-label">전체 절약 시간</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-value" id="total-count">0회</div>
+        <div class="summary-label">전체 절약 횟수</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-value" id="total-points">0</div>
+        <div class="summary-label">누적 포인트</div>
+      </div>
+    </div>
+
+    <section class="chart-section">
+      <h2>이번 주 절약 시간 <span class="unit">(분)</span></h2>
+      <div class="chart-wrapper">
+        <canvas id="weekly-chart"></canvas>
+      </div>
+    </section>
+
+    <section class="history-section">
+      <h2>최근 기록</h2>
+      <ul id="history-list">
+        <li class="empty">아직 기록이 없습니다.</li>
+      </ul>
+    </section>
+  </div>
+
+  <script src="stats.js"></script>
+</body>
+</html>

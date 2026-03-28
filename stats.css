@@ -1,0 +1,170 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #fafafa;
+  color: #1a1a1a;
+  min-height: 100vh;
+  padding: 40px 24px 60px;
+}
+
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+header {
+  margin-bottom: 28px;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #999;
+  margin-top: 4px;
+}
+
+/* 요약 카드 */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.summary-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 12px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.summary-card.accent {
+  background: #e8f8f2;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1;
+}
+
+.summary-card.accent .summary-value {
+  color: #1D9E75;
+}
+
+.summary-label {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 6px;
+}
+
+/* 차트 */
+.chart-section {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.chart-section h2,
+.history-section h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 16px;
+}
+
+.unit {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 400;
+}
+
+.chart-wrapper {
+  height: 160px;
+}
+
+/* 히스토리 */
+.history-section {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+#history-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+#history-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f4f4f4;
+  font-size: 13px;
+}
+
+#history-list li:last-child {
+  border-bottom: none;
+}
+
+.history-site {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-minutes {
+  color: #1D9E75;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.history-points {
+  color: #aaa;
+  font-size: 12px;
+}
+
+.history-date {
+  color: #ccc;
+  font-size: 11px;
+}
+
+li.empty {
+  justify-content: center;
+  color: #ccc;
+  font-size: 13px;
+  padding: 20px 0;
+  border: none;
+}
+
+/* 다크모드 */
+@media (prefers-color-scheme: dark) {
+  body { background: #111; color: #f0f0f0; }
+  .summary-card { background: #1c1c1e; box-shadow: none; }
+  .summary-card.accent { background: #0f3024; }
+  .summary-value { color: #f0f0f0; }
+  .chart-section,
+  .history-section { background: #1c1c1e; box-shadow: none; }
+  .chart-section h2,
+  .history-section h2 { color: #f0f0f0; }
+  #history-list li { border-color: #2c2c2e; }
+  .history-site { color: #f0f0f0; }
+}

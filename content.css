@@ -1,0 +1,188 @@
+#ds-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  animation: ds-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes ds-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+#ds-banner.ds-banner-hide {
+  animation: ds-slide-down 0.3s ease forwards;
+}
+
+@keyframes ds-slide-down {
+  from { transform: translateY(0);    opacity: 1; }
+  to   { transform: translateY(100%); opacity: 0; }
+}
+
+/* 메인 영역 */
+#ds-banner-inner {
+  background: #ffffff;
+  border-top: 1.5px solid #e8e8e8;
+  display: flex;
+  align-items: stretch;
+  padding: 12px 48px 12px 16px;
+  gap: 0;
+  position: relative;
+  min-height: 88px;
+}
+
+/* 메모 섹션 */
+#ds-memo-section {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-right: 20px;
+  border-right: 1px solid #f0f0f0;
+}
+
+#ds-memo {
+  flex: 1;
+  resize: none;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #1a1a1a;
+  outline: none;
+  height: 64px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+  background: #fafafa;
+}
+
+#ds-memo:focus {
+  border-color: #1a1a1a;
+  background: #fff;
+}
+
+#ds-memo::placeholder {
+  color: #bbb;
+}
+
+#ds-memo-save {
+  flex-shrink: 0;
+  background: #1a1a1a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+#ds-memo-save:hover { background: #333; }
+
+/* 광고 섹션 */
+#ds-ad-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  min-width: 200px;
+  border-left: 1px solid #f0f0f0;
+}
+
+#ds-ad-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #bbb;
+  letter-spacing: 1px;
+  border: 1px solid #ddd;
+  padding: 2px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+#ds-ad-body {
+  flex: 1;
+}
+
+#ds-ad-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 3px;
+}
+
+#ds-ad-sub {
+  font-size: 11px;
+  color: #aaa;
+  margin: 0;
+}
+
+#ds-ad-cta {
+  flex-shrink: 0;
+  background: #1a1a1a;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+#ds-ad-cta:hover {
+  background: #333;
+}
+
+/* 닫기 버튼 */
+#ds-banner-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 15px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  transition: color 0.2s;
+  border-radius: 4px;
+}
+
+#ds-banner-close:hover { color: #888; background: #f4f4f4; }
+
+/* 다크모드 */
+@media (prefers-color-scheme: dark) {
+  #ds-banner-inner {
+    background: #1c1c1e;
+    border-top-color: #2c2c2e;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+  }
+  #ds-memo-section { border-right-color: #2c2c2e; }
+  #ds-memo {
+    background: #2c2c2e;
+    border-color: #3a3a3a;
+    color: #f0f0f0;
+  }
+  #ds-memo:focus { border-color: #888; background: #333; }
+  #ds-memo::placeholder { color: #555; }
+  #ds-memo-save { background: #e0e0e0; color: #1a1a1a; }
+  #ds-memo-save:hover { background: #fff; }
+  #ds-banner-close { color: #555; }
+  #ds-banner-close:hover { color: #aaa; background: #2c2c2e; }
+  #ds-ad-section { border-left-color: #2c2c2e; }
+  #ds-ad-badge { border-color: #3a3a3a; color: #555; }
+  #ds-ad-title { color: #f0f0f0; }
+  #ds-ad-sub { color: #666; }
+  #ds-ad-cta { background: #e0e0e0; color: #1a1a1a; }
+  #ds-ad-cta:hover { background: #fff; }
+}
