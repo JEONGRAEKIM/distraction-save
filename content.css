@@ -1,188 +1,342 @@
-#ds-banner {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  z-index: 2147483647;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  animation: ds-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+/* =============================================================================
+   Distraction Save · content.css
+   ============================================================================= */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   YouTube 홈 피드 제어
+   ───────────────────────────────────────────────────────────────────────────── */
+
+body.ds-home:not(.ds-revealed) ytd-rich-grid-renderer,
+body.ds-home:not(.ds-revealed) ytd-rich-section-renderer,
+body.ds-home:not(.ds-revealed) ytd-rich-shelf-renderer,
+body.ds-home:not(.ds-revealed) ytd-reel-shelf-renderer,
+body.ds-home:not(.ds-revealed) ytd-rich-shelf-renderer[is-shorts] {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-@keyframes ds-slide-up {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+/* 20초 보기 중 — 피드 복원 */
+body.ds-home.ds-revealed ytd-rich-grid-renderer,
+body.ds-home.ds-revealed ytd-rich-section-renderer,
+body.ds-home.ds-revealed ytd-rich-shelf-renderer,
+body.ds-home.ds-revealed ytd-reel-shelf-renderer {
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
-#ds-banner.ds-banner-hide {
-  animation: ds-slide-down 0.3s ease forwards;
+/* 20초 보기 중 — Freedom Room 숨김 */
+body.ds-home.ds-revealed #ds-room {
+  display: none;
 }
 
-@keyframes ds-slide-down {
-  from { transform: translateY(0);    opacity: 1; }
-  to   { transform: translateY(100%); opacity: 0; }
-}
+/* =============================================================================
+   #ds-room — Freedom Room 패널 컨테이너
+   ============================================================================= */
 
-/* 메인 영역 */
-#ds-banner-inner {
-  background: #ffffff;
-  border-top: 1.5px solid #e8e8e8;
-  display: flex;
-  align-items: stretch;
-  padding: 12px 48px 12px 16px;
-  gap: 0;
+#ds-room {
   position: relative;
-  min-height: 88px;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0 0 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont,
+               'Apple SD Gothic Neo', 'Noto Sans KR',
+               'Malgun Gothic', 'Segoe UI', sans-serif;
+  animation: ds-fadein 0.55s ease;
 }
 
-/* 메모 섹션 */
-#ds-memo-section {
-  flex: 1;
+@keyframes ds-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* =============================================================================
+   .ds-scene — 자연 배경
+   ─────────────────────────────────────────────────────────────────────────────
+   영상으로 교체하려면:
+     1. .ds-scene 의 background: 규칙 전부 제거
+     2. .ds-scene::before / ::after 의 background 제거 (clip-path 유지)
+     3. content.js buildPanel() 주석 안의 <video> 태그 활성화
+        → .ds-scene-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+   ============================================================================= */
+
+.ds-scene {
+  position: absolute;
+  inset: 0;
+
+  /* ── 새벽 일출 하늘 (위 = 짙은 남색, 아래 = 따뜻한 황금) ─────────────────── */
+  background:
+    /* 화면 하단 빛 소멸 — 시선을 텍스트로 */
+    linear-gradient(to bottom,
+      transparent 74%,
+      rgba(4, 10, 8, 0.55) 100%
+    ),
+    /* 오른쪽 지평선 태양 외광 */
+    radial-gradient(ellipse 72% 32% at 76% 80%,
+      rgba(245, 180, 60, 0.38),
+      rgba(220, 140, 30, 0.12) 55%,
+      transparent 80%
+    ),
+    /* 태양 코로나 (안쪽 빛) */
+    radial-gradient(ellipse 28% 16% at 76% 74%,
+      rgba(255, 238, 175, 0.72),
+      rgba(255, 208, 110, 0.28) 55%,
+      transparent 80%
+    ),
+    /* 태양 디스크 */
+    radial-gradient(circle 3.8% at 76% 73%,
+      rgba(255, 252, 228, 1.0),
+      rgba(255, 228, 148, 0.82) 38%,
+      rgba(255, 198, 90, 0.22) 68%,
+      transparent 82%
+    ),
+    /* 지평선 온기 띠 */
+    linear-gradient(to bottom,
+      transparent 68%,
+      rgba(215, 168, 78, 0.20) 76%,
+      rgba(188, 132, 50, 0.10) 82%,
+      transparent 90%
+    ),
+    /* 먼 산맥 (대기 산란 — 하늘과 거의 같은 톤, 아주 옅은 청회) */
+    radial-gradient(ellipse 55% 14% at  3% 75%, rgba(130, 162, 185, 0.76), transparent 55%),
+    radial-gradient(ellipse 46% 12% at 24% 73%, rgba(124, 156, 180, 0.70), transparent 55%),
+    radial-gradient(ellipse 50% 13% at 48% 76%, rgba(132, 164, 188, 0.72), transparent 55%),
+    radial-gradient(ellipse 42% 11% at 70% 72%, rgba(144, 174, 196, 0.62), transparent 55%),
+    radial-gradient(ellipse 38% 12% at 93% 75%, rgba(128, 160, 183, 0.67), transparent 55%),
+    /* 하늘 그라디언트 — 새벽 일출 팔레트 */
+    linear-gradient(180deg,
+      #030810 0%,
+      #060e1e 4%,
+      #0c1a32 9%,
+      #142848 15%,
+      #1c3862 22%,
+      #264e80 29%,
+      #3264a0 37%,
+      #4278b8 45%,
+      #5a92c8 53%,
+      #78aad4 60%,
+      #9abee0 66%,
+      #b8d2e8 70%,
+      #d0e2ec 73%,
+      #dcdac8 76%,
+      #d8c898 80%,
+      #c8a870 85%,
+      #b08040 90%,
+      #885820 95%,
+      #5c3410 100%
+    );
+}
+
+/* ── 중경 산 능선 (clip-path 폴리곤) ─────────────────────────────────────── */
+.ds-scene::before,
+.ds-scene::after {
+  content: none;
+}
+
+/* video 배경 교체 시 사용 */
+.ds-scene-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* =============================================================================
+   .ds-room-inner — 텍스트 + 버튼 레이어
+   ============================================================================= */
+
+.ds-room-inner {
+  position: relative;
+  z-index: 1;
+  min-height: 92vh;
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding-right: 20px;
-  border-right: 1px solid #f0f0f0;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 60px 88px 100px;
+  color: #f2f9ff;
 }
 
-#ds-memo {
-  flex: 1;
-  resize: none;
-  border: 1.5px solid #e8e8e8;
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 12.5px;
-  font-family: inherit;
-  color: #1a1a1a;
-  outline: none;
-  height: 64px;
-  line-height: 1.5;
-  transition: border-color 0.2s;
-  background: #fafafa;
-}
+/* ── Freedom Room 배지 ───────────────────────────────────────────────────── */
 
-#ds-memo:focus {
-  border-color: #1a1a1a;
-  background: #fff;
-}
-
-#ds-memo::placeholder {
-  color: #bbb;
-}
-
-#ds-memo-save {
-  flex-shrink: 0;
-  background: #1a1a1a;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 14px;
-  font-size: 11.5px;
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 15px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 10.5px;
   font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  font-family: inherit;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(240, 250, 255, 0.75);
+  margin-bottom: 28px;
+}
+
+/* ── 카피 텍스트 ─────────────────────────────────────────────────────────── */
+
+.ds-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 28px;
+}
+
+.ds-copy-main {
+  margin: 0;
+  font-size: clamp(30px, 4.6vw, 60px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  /* 가독성을 위한 매우 부드러운 그림자 */
+  text-shadow: 0 2px 24px rgba(4, 10, 18, 0.45);
+}
+
+.ds-copy-sub {
+  margin: 0;
+  font-size: clamp(17px, 2.5vw, 32px);
+  font-weight: 400;
+  line-height: 1.45;
+  color: rgba(240, 250, 255, 0.84);
+  text-shadow: 0 1px 16px rgba(4, 10, 18, 0.38);
+}
+
+/* ── 오늘 기억할 일 배지 ─────────────────────────────────────────────────── */
+
+.ds-task {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 13px;
+  color: rgba(240, 250, 255, 0.86);
+  margin-bottom: 30px;
+  max-width: min(480px, 90%);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#ds-memo-save:hover { background: #333; }
+/* ── 버튼 ────────────────────────────────────────────────────────────────── */
 
-/* 광고 섹션 */
-#ds-ad-section {
+.ds-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ds-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 26px;
+  font-family: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  line-height: 1;
+}
+
+.ds-btn:hover  { opacity: 0.80; transform: translateY(-1px); }
+.ds-btn:active { opacity: 0.60; transform: translateY(0); }
+
+/* 메인 버튼 — 흰색 */
+.ds-btn-white {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0c1d28;
+  font-weight: 700;
+}
+
+/* 서브 버튼 — 반투명 */
+.ds-btn-ghost {
+  background: rgba(255, 255, 255, 0.10);
+  color: #f2f9ff;
+  font-weight: 400;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* =============================================================================
+   #ds-reveal-bar — 20초 카운트다운 바
+   ============================================================================= */
+
+#ds-reveal-bar {
+  position: fixed;
+  bottom: -72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483646;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px;
-  min-width: 200px;
-  border-left: 1px solid #f0f0f0;
-}
-
-#ds-ad-badge {
-  font-size: 9px;
-  font-weight: 700;
-  color: #bbb;
-  letter-spacing: 1px;
-  border: 1px solid #ddd;
-  padding: 2px 5px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
-#ds-ad-body {
-  flex: 1;
-}
-
-#ds-ad-title {
+  gap: 14px;
+  padding: 11px 18px 11px 22px;
+  border-radius: 999px;
+  background: rgba(8, 18, 26, 0.88);
+  color: rgba(232, 246, 255, 0.90);
+  font-family: -apple-system, BlinkMacSystemFont,
+               'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
   font-size: 13px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 3px;
-}
-
-#ds-ad-sub {
-  font-size: 11px;
-  color: #aaa;
-  margin: 0;
-}
-
-#ds-ad-cta {
-  flex-shrink: 0;
-  background: #1a1a1a;
-  color: #fff;
-  text-decoration: none;
-  border-radius: 8px;
-  padding: 7px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  transition: background 0.15s;
   white-space: nowrap;
+  transition: bottom 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-#ds-ad-cta:hover {
-  background: #333;
+#ds-reveal-bar.ds-active {
+  bottom: 20px;
 }
 
-/* 닫기 버튼 */
-#ds-banner-close {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  background: transparent;
+#ds-reveal-return {
   border: none;
-  color: #ccc;
-  font-size: 15px;
+  border-radius: 999px;
+  padding: 7px 16px;
+  background: rgba(255, 255, 255, 0.13);
+  color: #e8f6ff;
+  font-family: inherit;
+  font-size: 12px;
   cursor: pointer;
-  line-height: 1;
-  padding: 4px;
-  transition: color 0.2s;
-  border-radius: 4px;
+  transition: background 0.14s;
 }
 
-#ds-banner-close:hover { color: #888; background: #f4f4f4; }
+#ds-reveal-return:hover { background: rgba(255, 255, 255, 0.24); }
 
-/* 다크모드 */
-@media (prefers-color-scheme: dark) {
-  #ds-banner-inner {
-    background: #1c1c1e;
-    border-top-color: #2c2c2e;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+/* =============================================================================
+   반응형
+   ============================================================================= */
+
+@media (max-width: 1100px) {
+  .ds-room-inner { padding: 52px 60px 88px; }
+}
+
+@media (max-width: 768px) {
+  .ds-room-inner { padding: 44px 32px 72px; }
+
+  #ds-reveal-bar {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    border-radius: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
   }
-  #ds-memo-section { border-right-color: #2c2c2e; }
-  #ds-memo {
-    background: #2c2c2e;
-    border-color: #3a3a3a;
-    color: #f0f0f0;
+}
+
+@media (max-width: 480px) {
+  .ds-room-inner { padding: 36px 22px 60px; }
+
+  .ds-actions {
+    flex-direction: column;
+    width: 100%;
   }
-  #ds-memo:focus { border-color: #888; background: #333; }
-  #ds-memo::placeholder { color: #555; }
-  #ds-memo-save { background: #e0e0e0; color: #1a1a1a; }
-  #ds-memo-save:hover { background: #fff; }
-  #ds-banner-close { color: #555; }
-  #ds-banner-close:hover { color: #aaa; background: #2c2c2e; }
-  #ds-ad-section { border-left-color: #2c2c2e; }
-  #ds-ad-badge { border-color: #3a3a3a; color: #555; }
-  #ds-ad-title { color: #f0f0f0; }
-  #ds-ad-sub { color: #666; }
-  #ds-ad-cta { background: #e0e0e0; color: #1a1a1a; }
-  #ds-ad-cta:hover { background: #fff; }
+
+  .ds-btn {
+    width: 100%;
+    text-align: center;
+    padding: 14px 20px;
+  }
+
+  .ds-task { white-space: normal; }
 }
