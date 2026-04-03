@@ -39,15 +39,13 @@ body.ds-home.ds-revealed #ds-room {
   min-height: 100vh;
   margin: 0 0 0;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 82%, rgba(129, 173, 214, 0.20), transparent 32%),
+    radial-gradient(circle at 78% 16%, rgba(248, 197, 123, 0.16), transparent 24%),
+    linear-gradient(180deg, #07111d 0%, #0b1d31 38%, #102842 68%, #15293b 100%);
   font-family: -apple-system, BlinkMacSystemFont,
                'Apple SD Gothic Neo', 'Noto Sans KR',
                'Malgun Gothic', 'Segoe UI', sans-serif;
-  animation: ds-fadein 0.55s ease;
-}
-
-@keyframes ds-fadein {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 /* =============================================================================
@@ -141,6 +139,18 @@ body.ds-home.ds-revealed #ds-room {
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 18%, rgba(246, 202, 136, 0.14), transparent 20%),
+    radial-gradient(circle at 20% 78%, rgba(122, 165, 209, 0.18), transparent 28%),
+    linear-gradient(180deg, #081320 0%, #10243b 52%, #172e41 100%);
+  will-change: opacity;
+}
+
+.ds-scene-video.is-active {
+  opacity: 1;
 }
 
 /* =============================================================================
@@ -192,8 +202,7 @@ body.ds-home.ds-revealed #ds-room {
   line-height: 1.08;
   letter-spacing: -0.025em;
   color: #ffffff;
-  /* 가독성을 위한 매우 부드러운 그림자 */
-  text-shadow: 0 2px 24px rgba(4, 10, 18, 0.45);
+  text-shadow: 0 8px 30px rgba(4, 10, 18, 0.32);
 }
 
 .ds-copy-sub {
@@ -201,8 +210,8 @@ body.ds-home.ds-revealed #ds-room {
   font-size: clamp(17px, 2.5vw, 32px);
   font-weight: 400;
   line-height: 1.45;
-  color: rgba(240, 250, 255, 0.84);
-  text-shadow: 0 1px 16px rgba(4, 10, 18, 0.38);
+  color: rgba(236, 246, 255, 0.86);
+  text-shadow: 0 4px 20px rgba(4, 10, 18, 0.24);
 }
 
 /* ── 오늘 기억할 일 배지 ─────────────────────────────────────────────────── */
@@ -303,6 +312,122 @@ body.ds-home.ds-revealed #ds-room {
 #ds-reveal-return:hover { background: rgba(255, 255, 255, 0.24); }
 
 /* =============================================================================
+   #ds-hn-timer-bar — 1분 타이머 바
+   ============================================================================= */
+
+#ds-hn-timer-bar {
+  position: fixed;
+  bottom: -72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 18px 11px 22px;
+  border-radius: 999px;
+  background: rgba(8, 18, 26, 0.88);
+  color: rgba(232, 246, 255, 0.90);
+  font-family: -apple-system, BlinkMacSystemFont,
+               'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: bottom 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#ds-hn-timer-bar.ds-active {
+  bottom: 20px;
+}
+
+#ds-hn-timer-bar.ds-timer-done {
+  background: rgba(21, 80, 40, 0.95);
+}
+
+#ds-hn-timer-exit {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 16px;
+  background: rgba(255, 255, 255, 0.13);
+  color: #e8f6ff;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.14s;
+}
+
+#ds-hn-timer-exit:hover { background: rgba(255, 255, 255, 0.24); }
+
+@media (max-width: 768px) {
+  #ds-hn-timer-bar {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    border-radius: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+}
+
+/* =============================================================================
+   #ds-echo-bar — 30분 메아리 바 (Honest Nudge Phase 1.5)
+   ============================================================================= */
+
+#ds-echo-bar {
+  position: fixed;
+  bottom: -72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483645;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px 11px 20px;
+  border-radius: 999px;
+  background: rgba(8, 18, 26, 0.90);
+  color: rgba(232, 246, 255, 0.88);
+  font-family: -apple-system, BlinkMacSystemFont,
+               'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  white-space: nowrap;
+  max-width: calc(100vw - 40px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: bottom 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#ds-echo-bar.ds-echo-bar--active {
+  bottom: 20px;
+}
+
+.ds-echo-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-echo-close {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(232, 246, 255, 0.85);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.14s ease;
+}
+
+.ds-echo-close:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* =============================================================================
    반응형
    ============================================================================= */
 
@@ -339,4 +464,13 @@ body.ds-home.ds-revealed #ds-room {
   }
 
   .ds-task { white-space: normal; }
+
+  .ds-intent-input { width: 100%; }
+
+  #ds-echo-bar {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    border-radius: 18px;
+  }
 }

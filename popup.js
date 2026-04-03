@@ -1,52 +1,77 @@
 document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.getElementById('main-toggle');
   const statusText = document.getElementById('status-text');
-  const altUrl = document.getElementById('alt-url');
   const statsBtn = document.getElementById('stats-btn');
+  const todayTaskInput = document.getElementById('today-task-input');
+  const geminiKeyInput = document.getElementById('gemini-key-input');
+  const geminiKeyStatus = document.getElementById('gemini-key-status');
+  let saveTaskTimer = null;
+  let saveKeyTimer = null;
 
-  // 현재 상태 로드
-  chrome.storage.local.get(['stats', 'settings'], (result) => {
-    const stats = result.stats || {};
-    const settings = result.settings || {};
+  chrome.storage.local.get(['stats', 'settings', 'geminiApiKey'], ({ stats = {}, settings = {}, geminiApiKey }) => {
+    const todayAltCount = stats.todayAltCount || 0;
 
-    // 통계 표시
-    document.getElementById('today-count').textContent = stats.todayCount || 0;
-    document.getElementById('today-minutes').textContent = (stats.todayMinutes || 0) + '분';
-    document.getElementById('total-points').textContent = stats.points || 0;
+    document.getElementById('today-points').textContent = stats.todayPoints || 0;
+    document.getElementById('today-awareness').textContent = stats.todayAwarenessCount || 0;
+    document.getElementById('today-saved-time').textContent = todayAltCount * 15;
+    document.getElementById('today-breaks').textContent = stats.todayBreakCount || 0;
 
-    // 설정 표시
     toggle.checked = settings.enabled !== false;
-    statusText.textContent = toggle.checked ? '활성화됨' : '비활성화됨';
-    if (settings.alternativeUrl) {
-      altUrl.value = settings.alternativeUrl;
+    statusText.textContent = toggle.checked ? '보호 모드 켜짐' : '보호 모드 꺼짐';
+    todayTaskInput.value = settings.todayTask || '';
+
+    if (geminiApiKey) {
+      geminiKeyInput.value = geminiApiKey;
+      geminiKeyStatus.textContent = '✓ API 키가 설정되어 있어요.';
+      geminiKeyStatus.style.color = '#4caf7d';
     }
   });
 
-  // 토글 변경
   toggle.addEventListener('change', () => {
-    const enabled = toggle.checked;
-    statusText.textContent = enabled ? '활성화됨' : '비활성화됨';
-    chrome.storage.local.get(['settings'], (result) => {
-      const settings = result.settings || {};
-      settings.enabled = enabled;
-      chrome.storage.local.set({ settings });
+    chrome.storage.local.get(['settings'], ({ settings = {} }) => {
+      statusText.textContent = toggle.checked ? '보호 모드 켜짐' : '보호 모드 꺼짐';
+      chrome.storage.local.set({
+        settings: {
+          ...settings,
+          enabled: toggle.checked,
+        },
+      });
     });
   });
 
-  // 대체 URL 저장 (입력 후 0.8초 디바운스)
-  let saveTimer;
-  altUrl.addEventListener('input', () => {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      chrome.storage.local.get(['settings'], (result) => {
-        const settings = result.settings || {};
-        settings.alternativeUrl = altUrl.value.trim();
-        chrome.storage.local.set({ settings });
+  todayTaskInput.addEventListener('input', () => {
+    clearTimeout(saveTaskTimer);
+    saveTaskTimer = setTimeout(() => {
+      chrome.storage.local.get(['settings'], ({ settings = {} }) => {
+        chrome.storage.local.set({
+          settings: {
+            ...settings,
+            todayTask: todayTaskInput.value.trim(),
+          },
+        });
+      });
+    }, 300);
+  });
+
+  // Gemini API 키 저장 (입력 후 800ms 디바운스)
+  geminiKeyInput.addEventListener('input', () => {
+    clearTimeout(saveKeyTimer);
+    geminiKeyStatus.textContent = '저장 중...';
+    geminiKeyStatus.style.color = '';
+    saveKeyTimer = setTimeout(() => {
+      const key = geminiKeyInput.value.trim();
+      chrome.storage.local.set({ geminiApiKey: key || null }, () => {
+        if (key) {
+          geminiKeyStatus.textContent = '✓ API 키가 저장되었어요.';
+          geminiKeyStatus.style.color = '#4caf7d';
+        } else {
+          geminiKeyStatus.textContent = '키를 입력하면 기도/응원 기능이 활성화됩니다.';
+          geminiKeyStatus.style.color = '';
+        }
       });
     }, 800);
   });
 
-  // 통계 페이지 열기
   statsBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('stats.html') });
   });

@@ -9,10 +9,10 @@
 <body>
   <div id="app">
     <div class="header">
-      <span class="logo">🛡️</span>
+      <span class="logo">DS</span>
       <div class="header-text">
         <h1>Distraction Save</h1>
-        <p id="status-text">활성화됨</p>
+        <p id="status-text">보호 모드 켜짐</p>
       </div>
       <label class="toggle">
         <input type="checkbox" id="main-toggle" checked>
@@ -21,28 +21,51 @@
     </div>
 
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value" id="today-count">0</div>
-        <div class="stat-label">오늘 절약</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="today-minutes">0분</div>
-        <div class="stat-label">아낀 시간</div>
-      </div>
       <div class="stat-card accent">
-        <div class="stat-value" id="total-points">0</div>
-        <div class="stat-label">포인트</div>
+        <div class="stat-value" id="today-points">0</div>
+        <div class="stat-label">오늘 포인트</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="today-awareness">0</div>
+        <div class="stat-label">오늘 멈춘 횟수</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="today-saved-time">0</div>
+        <div class="stat-label">지켜낸 시간(분)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="today-breaks">0</div>
+        <div class="stat-label">1분 쉬기</div>
       </div>
     </div>
 
     <div class="section">
-      <label class="section-label">대체 목적지</label>
-      <input type="url" id="alt-url" placeholder="https://millie.co.kr" />
-      <p class="hint">비워두면 이전 페이지로 이동</p>
+      <label class="section-label" for="today-task-input">오늘 기억할 일</label>
+      <input
+        type="text"
+        id="today-task-input"
+        class="task-input"
+        placeholder="예: 보고서 마무리, 운동 다녀오기"
+        maxlength="60"
+      >
+      <p class="section-help">유튜브 홈 Freedom Room에 바로 표시됩니다.</p>
+    </div>
+
+    <div class="section">
+      <label class="section-label" for="gemini-key-input">Gemini API 키</label>
+      <input
+        type="password"
+        id="gemini-key-input"
+        class="task-input"
+        placeholder="API 키를 입력하세요"
+        maxlength="200"
+        autocomplete="off"
+      >
+      <p class="section-help" id="gemini-key-status">키를 입력하면 기도/응원 기능이 활성화됩니다.</p>
     </div>
 
     <div class="footer">
-      <button id="stats-btn">전체 통계 보기</button>
+      <button id="stats-btn">기록 보기</button>
     </div>
   </div>
   <script src="popup.js"></script>

@@ -1,91 +1,284 @@
-// 탭 URL 변경 감지 — 직접 링크(video ID 포함)는 통과시킴
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete') return;
-  if (!tab.url) return;
+const DISTRACTION_SITES = [
+  'youtube.com',
+  'instagram.com',
+  'twitter.com',
+  'x.com',
+  'tiktok.com',
+  'facebook.com',
+  'reddit.com',
+  'naver.com',
+  'threads.net',
+];
 
-  const url = new URL(tab.url);
+const DEFAULT_QUIET_MINUTES = 10;
+const QUIET_MS = DEFAULT_QUIET_MINUTES * 60 * 1000; // 10분
+const HISTORY_LIMIT = 50;
 
-  // 직접 링크 판별 함수
-  function isDirectLink(url) {
-    // YouTube: /watch?v= 있으면 목적지 명확 → 통과
-    if (url.hostname.includes('youtube.com')) {
-      if (url.pathname === '/watch' && url.searchParams.get('v')) return true;
-      // 특정 채널/재생목록도 통과
-      if (url.pathname.startsWith('/channel/')) return true;
-      if (url.pathname.startsWith('/c/')) return true;
-      if (url.searchParams.get('list')) return true;
-    }
+function isDistractionSite(hostname) {
+  return DISTRACTION_SITES.some((site) => hostname.includes(site));
+}
+
+function shouldShowOverlay(urlString, settings = {}) {
+  if (settings.enabled === false) return false;
+
+  try {
+    const url = new URL(urlString);
+    if (url.hostname.includes('youtube.com')) return false;
+    return url.protocol.startsWith('http');
+  } catch (_error) {
     return false;
   }
+}
 
-  if (isDirectLink(url)) return;
+function createDefaultStats() {
+  return {
+    awarenessCount: 0,
+    todayAwarenessCount: 0,
+    altChoiceCount: 0,
+    todayAltCount: 0,
+    quietChoiceCount: 0,
+    todayBreakCount: 0,
+    totalPoints: 0,
+    todayPoints: 0,
+    lastDate: new Date().toDateString(),
+    history: [],
+  };
+}
 
-  // 입구 페이지만 content script로 신호 전송
-  chrome.tabs.sendMessage(tabId, { type: 'SHOW_OVERLAY' }).catch(() => {});
-});
+function createDefaultSettings() {
+  return {
+    enabled: true,
+    alternatives: [],
+    quietMinutes: DEFAULT_QUIET_MINUTES,
+    quietUntilByHost: {},
+    todayTask: '',
+  };
+}
 
-// 스토리지 초기화
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['stats', 'settings'], (result) => {
-    if (!result.stats) {
-      chrome.storage.local.set({
-        stats: {
-          savedCount: 0,
-          savedMinutes: 0,
-          points: 0,
-          todayCount: 0,
-          todayMinutes: 0,
-          lastDate: new Date().toDateString(),
-          history: []
-        }
-      });
-    }
-    if (!result.settings) {
-      chrome.storage.local.set({
-        settings: {
-          enabled: true,
-          alternativeUrl: '',
-          sessionCooldown: true  // 세션당 한 번만 표시
-        }
-      });
-    }
+function rotateDailyStats(stats) {
+  const today = new Date().toDateString();
+  if (stats.lastDate === today) return stats;
+
+  return {
+    ...stats,
+    todayAwarenessCount: 0,
+    todayAltCount: 0,
+    todayBreakCount: 0,
+    todayPoints: 0,
+    lastDate: today,
+  };
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete' || !tab.url) return;
+
+  chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+    if (!shouldShowOverlay(tab.url, settings)) return;
+
+    let hostname;
+    try {
+      hostname = new URL(tab.url).hostname;
+    } catch (_) { return; }
+
+    const cooldownKey = 'cd_' + hostname;
+
+    // chrome.storage.session은 service worker 재시작에도 유지됨
+    chrome.storage.session.get([cooldownKey], (result) => {
+      const lastShown = result[cooldownKey] || 0;
+      if (Date.now() - lastShown < QUIET_MS) return;
+
+      chrome.storage.session.set({ [cooldownKey]: Date.now() });
+      chrome.tabs.sendMessage(tabId, { type: 'SHOW_OVERLAY' }).catch(() => {});
+    });
   });
 });
 
-// 통계 업데이트 메시지 처리
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'SAVE_SUCCESS') {
-    chrome.storage.local.get(['stats'], (result) => {
-      const stats = result.stats || {};
-      const today = new Date().toDateString();
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.get(['stats', 'settings'], ({ stats, settings }) => {
+    chrome.storage.local.set({
+      stats: {
+        ...createDefaultStats(),
+        ...(stats || {}),
+      },
+      settings: {
+        ...createDefaultSettings(),
+        ...(settings || {}),
+      },
+    });
+  });
+});
 
-      // 날짜 바뀌면 오늘 카운트 리셋
-      if (stats.lastDate !== today) {
-        stats.todayCount = 0;
-        stats.todayMinutes = 0;
-        stats.lastDate = today;
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'SET_SITE_QUIET') {
+    chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+      const hostname = message.hostname;
+      if (!hostname) {
+        sendResponse({ success: false });
+        return;
       }
 
-      stats.savedCount = (stats.savedCount || 0) + 1;
-      stats.todayCount = (stats.todayCount || 0) + 1;
-      stats.points = (stats.points || 0) + message.points;
-      stats.savedMinutes = (stats.savedMinutes || 0) + message.minutes;
-      stats.todayMinutes = (stats.todayMinutes || 0) + message.minutes;
+      const minutes = Number(message.minutes) || settings.quietMinutes || DEFAULT_QUIET_MINUTES;
+      const quietUntilByHost = {
+        ...(settings.quietUntilByHost || {}),
+        [hostname]: Date.now() + (minutes * 60 * 1000),
+      };
 
-      // 히스토리 기록 (최근 30개)
-      stats.history = stats.history || [];
-      stats.history.unshift({
+      chrome.storage.local.set({
+        settings: {
+          ...settings,
+          quietUntilByHost,
+        },
+      }, () => sendResponse({ success: true }));
+    });
+    return true;
+  }
+
+  if (message.type === 'AWARENESS_RECORD') {
+    chrome.storage.local.get(['stats'], ({ stats = createDefaultStats() }) => {
+      const nextStats = rotateDailyStats({
+        ...createDefaultStats(),
+        ...stats,
+      });
+      const points = Math.max(0, Number(message.points) || 0);
+
+      nextStats.awarenessCount += 1;
+      nextStats.todayAwarenessCount += 1;
+      nextStats.totalPoints += points;
+      nextStats.todayPoints += points;
+
+      if (message.choice === 'alt') {
+        nextStats.altChoiceCount += 1;
+        nextStats.todayAltCount += 1;
+      }
+
+      if (message.choice === 'quiet') {
+        nextStats.quietChoiceCount += 1;
+        nextStats.todayBreakCount += 1;
+      }
+
+      nextStats.history = nextStats.history || [];
+      nextStats.history.unshift({
         date: new Date().toISOString(),
         site: message.site,
-        minutes: message.minutes,
-        points: message.points
+        state: message.state || null,
+        choice: message.choice,
+        altLabel: message.altLabel || null,
+        points,
       });
-      if (stats.history.length > 30) stats.history.pop();
 
-      chrome.storage.local.set({ stats }, () => {
-        sendResponse({ success: true, stats });
+      if (nextStats.history.length > HISTORY_LIMIT) {
+        nextStats.history = nextStats.history.slice(0, HISTORY_LIMIT);
+      }
+
+      chrome.storage.local.set({ stats: nextStats }, () => {
+        sendResponse({ success: true, stats: nextStats });
       });
+    });
+    return true;
+  }
+
+  // Gemini API 기도/응원 생성
+  if (message.type === 'GEMINI_PRAYER') {
+    chrome.storage.local.get(['geminiApiKey'], async ({ geminiApiKey }) => {
+      if (!geminiApiKey) {
+        sendResponse({ error: 'Gemini API 키가 설정되지 않았어요. 확장 아이콘을 클릭해 키를 입력해주세요.' });
+        return;
+      }
+
+      const { text = '', tags = [], mode = 'prayer' } = message;
+      const tagStr = tags.length ? ` 감정 상태: ${tags.join(', ')}.` : '';
+
+      const prompt = mode === 'prayer'
+        ? `사용자가 이런 마음을 나눠주었습니다: "${text}"${tagStr}
+따뜻한 공감 한 줄과 짧은 기도문을 한국어로 작성해주세요.
+JSON 형식으로만 응답하세요: {"empathy":"공감 문장 1줄 (20자 이내)","prayer":"기도문 (3-4문장, 자연스럽고 따뜻하게)"}
+종교적이되 과하지 않게, 진심 어린 톤으로.`
+        : `사용자가 이런 마음을 나눠주었습니다: "${text}"${tagStr}
+따뜻하고 가벼운 응원 메시지를 한국어로 작성해주세요.
+JSON 형식으로만 응답하세요: {"empathy":"공감 문장 1줄 (20자 이내)","cheer":"응원 메시지 (2-3문장, 종교적 언어 없이 따뜻하게)"}`;
+
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          }
+        );
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        // JSON 블록 추출 (마크다운 코드블록 포함 대응)
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('응답 파싱 실패');
+
+        const result = JSON.parse(jsonMatch[0]);
+        sendResponse({ result });
+      } catch (err) {
+        sendResponse({ error: `오류가 생겼어요: ${err.message}` });
+      }
     });
     return true; // 비동기 응답
   }
+
+  // Freedom Room 기도/응원 체크인 기록
+  if (message.type === 'FREEDOM_ROOM_RECORD') {
+    chrome.storage.local.get(['stats'], ({ stats = createDefaultStats() }) => {
+      const nextStats = rotateDailyStats({
+        ...createDefaultStats(),
+        ...stats,
+      });
+
+      nextStats.history = nextStats.history || [];
+      nextStats.history.unshift({
+        date: new Date().toISOString(),
+        site: 'youtube.com',
+        choice: message.skipped ? 'skipped' : (message.mode || 'checkin'),
+        text: message.text || null,
+        tags: message.tags || [],
+        skipped: message.skipped || false,
+        points: 0,
+      });
+
+      if (nextStats.history.length > HISTORY_LIMIT) {
+        nextStats.history = nextStats.history.slice(0, HISTORY_LIMIT);
+      }
+
+      const saveData = { stats: nextStats };
+
+      // 기도/응원을 요청했으면 30분 후 메아리 알람 설정
+      if (!message.skipped && message.text) {
+        saveData.echoEntry = {
+          text: message.text,
+          mode: message.mode || 'prayer',
+          timestamp: new Date().toISOString(),
+        };
+        chrome.alarms.create('echo_30min', { delayInMinutes: 30 });
+      }
+
+      chrome.storage.local.set(saveData, () => sendResponse({ success: true }));
+    });
+    return true;
+  }
+
+  return false;
+});
+
+// 30분 메아리 알람 처리
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== 'echo_30min') return;
+
+  chrome.storage.local.get(['echoEntry'], ({ echoEntry }) => {
+    if (!echoEntry) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (tab?.url?.includes('youtube.com')) {
+        chrome.tabs.sendMessage(tab.id, { type: 'SHOW_ECHO', entry: echoEntry }).catch(() => {});
+      }
+    });
+  });
 });
