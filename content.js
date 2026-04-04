@@ -807,14 +807,26 @@ const HN_MESSAGES = {
 const HN_REST_TIMER_KEY = 'hn_timer_start';
 const HN_REST_LIMIT_SECONDS = 60;
 const HN_REST_MAX_RESUME_SECONDS = 120;
+const HN_CHALLENGE_SECONDS = 60;
+const HN_SMALL_TASKS_KEY = 'hnSmallTasks';
+const HN_MAX_SMALL_TASKS = 10;
+const HN_DEFAULT_SMALL_TASKS = [
+  '물 한 모금 마시기',
+  '자세 바로 하기',
+  '메모 한 줄 쓰기',
+  '책상 위 한 칸 정리하기',
+  '오늘 할 일 하나 적기',
+];
 
 const hn = {
   pendingUrl: null,
-  challengeRemaining: 20,
+  challengeRemaining: HN_CHALLENGE_SECONDS,
   challengeInterval: null,
   autoExitRemaining: 5,
   autoExitInterval: null,
   celebrateIndex: 0,
+  smallTasks: [],
+  smallTaskSeq: 0,
 };
 
 function hnRemove() {
@@ -862,6 +874,80 @@ function hnStartRestTimer() {
 
 function hnClearRestTimer() {
   sessionStorage.removeItem(HN_REST_TIMER_KEY);
+}
+
+function hnLoadSmallTasks(callback) {
+  const fallback = HN_DEFAULT_SMALL_TASKS.slice();
+
+  try {
+    if (!globalThis.chrome?.storage?.local) {
+      callback(fallback);
+      return;
+    }
+
+    chrome.storage.local.get([HN_SMALL_TASKS_KEY], (result) => {
+      if (chrome.runtime?.lastError) {
+        callback(fallback);
+        return;
+      }
+
+      const saved = Array.isArray(result?.[HN_SMALL_TASKS_KEY])
+        ? result[HN_SMALL_TASKS_KEY]
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+          .slice(0, HN_MAX_SMALL_TASKS)
+        : [];
+
+      callback(saved.length ? saved : fallback);
+    });
+  } catch (_error) {
+    callback(fallback);
+  }
+}
+
+function hnSaveSmallTasks(texts) {
+  try {
+    if (!globalThis.chrome?.storage?.local) return;
+    chrome.storage.local.set({
+      [HN_SMALL_TASKS_KEY]: texts.slice(0, HN_MAX_SMALL_TASKS),
+    }, () => {
+      void chrome.runtime?.lastError;
+    });
+  } catch (_error) {
+    // Storage failures should not break the prompt.
+  }
+}
+
+function hnResetSmallTasks(texts) {
+  hn.smallTaskSeq = 0;
+  hn.smallTasks = texts.slice(0, HN_MAX_SMALL_TASKS).map((text) => {
+    hn.smallTaskSeq += 1;
+    return {
+      id: `hn-task-${hn.smallTaskSeq}`,
+      text,
+      done: false,
+    };
+  });
+}
+
+function hnCompletedTaskCount() {
+  return hn.smallTasks.filter((item) => item.done).length;
+}
+
+function hnAddSmallTask(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  if (hn.smallTasks.length >= HN_MAX_SMALL_TASKS) return false;
+  if (hn.smallTasks.some((item) => item.text === value)) return true;
+
+  hn.smallTaskSeq += 1;
+  hn.smallTasks.push({
+    id: `hn-task-${hn.smallTaskSeq}`,
+    text: value,
+    done: false,
+  });
+  hnSaveSmallTasks(hn.smallTasks.map((item) => item.text));
+  return true;
 }
 
 function hnShowCelebrate(type, afterFn) {
@@ -959,6 +1045,134 @@ function hnShowChallenge() {
   }, 1000);
 }
 
+function hnShowChallengeComplete() {
+  hnShowCelebrate('challengeComplete', () => {
+    const root = hnRoot();
+    if (!root) return;
+
+    const completed = hnCompletedTaskCount();
+    const summary = completed > 0
+      ? `작은 할 일 ${completed}개를 해냈어요.`
+      : '1분 동안 흐름을 붙잡아냈어요.';
+
+    const card = root.getElementById('hn-card');
+    card.innerHTML =
+      '<div style="text-align:center;padding:32px 24px">' +
+      '<div style="font-size:56px;margin-bottom:14px">✅</div>' +
+      '<h3 style="font-size:19px;font-weight:700;color:#111827;margin:0 0 10px">작은 할 일을 해냈어요</h3>' +
+      '<p style="font-size:14px;color:#6b7280;margin:0 0 24px;line-height:1.6">' + esc(summary) + '<br>이제 선택하세요.</p>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button id="hn-confirm-exit" style="padding:15px;background:white;color:#374151;border-radius:14px;font-weight:600;font-size:14px;border:2px solid #e5e7eb;cursor:pointer;font-family:inherit">👋 여기서 멈출게요</button>' +
+      '<button id="hn-confirm-enter" style="padding:13px;background:#f0f9ff;color:#0369a1;border-radius:12px;font-weight:600;font-size:13px;border:none;cursor:pointer;font-family:inherit">🚀 할 일 했어요, 입장할게요</button>' +
+      '</div>' +
+      '</div>';
+
+    root.getElementById('hn-confirm-exit').addEventListener('click', () => {
+      hnStat('challenge20Exit');
+      hnStat('resistCount');
+      hnShowCelebrate('challengeExit', hnRemove);
+    });
+    root.getElementById('hn-confirm-enter').addEventListener('click', () => {
+      hnStat('challenge20Enter');
+      hnNavigate(hn.pendingUrl);
+    });
+  });
+}
+
+function hnRenderChallenge() {
+  const root = hnRoot();
+  if (!root) return;
+
+  const remaining = hn.challengeRemaining;
+  const completed = hnCompletedTaskCount();
+  const color = remaining <= 10 ? '#22c55e' : '#3b82f6';
+  const progress = ((HN_CHALLENGE_SECONDS - remaining) / HN_CHALLENGE_SECONDS) * 100;
+  const tasksHtml = hn.smallTasks.map((item) => (
+    '<button type="button" class="hn-task-item' + (item.done ? ' is-done' : '') + '" data-task-id="' + esc(item.id) + '" aria-pressed="' + (item.done ? 'true' : 'false') + '" style="display:flex;align-items:center;gap:10px;width:100%;border:1px solid ' + (item.done ? '#86efac' : '#dbeafe') + ';background:' + (item.done ? '#f0fdf4' : '#f8fbff') + ';color:#0f172a;border-radius:14px;padding:11px 12px;cursor:pointer;font-family:inherit;text-align:left">' +
+    '<span style="flex:0 0 auto;width:22px;height:22px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:' + (item.done ? '#22c55e' : '#ffffff') + ';color:' + (item.done ? '#ffffff' : '#94a3b8') + ';border:1px solid ' + (item.done ? '#22c55e' : '#cbd5e1') + ';font-size:13px;font-weight:700">' + (item.done ? '✓' : '○') + '</span>' +
+    '<span style="font-size:13px;font-weight:' + (item.done ? '700' : '600') + ';line-height:1.4">' + esc(item.text) + '</span>' +
+    '</button>'
+  )).join('');
+
+  const card = root.getElementById('hn-card');
+  card.innerHTML =
+    '<div style="padding:28px 24px;position:relative">' +
+    '<button id="hn-challenge-cancel" style="position:absolute;top:12px;right:12px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;border-radius:50%;border:none;cursor:pointer;color:#6b7280;font-size:15px;font-family:inherit">✕</button>' +
+    '<div style="text-align:center;margin-bottom:18px">' +
+    '<div style="font-size:60px;font-weight:800;color:' + color + ';line-height:1;margin-bottom:14px;transition:color 0.3s">' + remaining + '</div>' +
+    '<h3 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">작은 할 일 하고 입장</h3>' +
+    '<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0">보고 싶은 마음을 1분만 작은 실행으로 바꿔봐요.<br>예시를 누르거나 직접 추가해도 됩니다.</p>' +
+    '</div>' +
+    '<div style="width:100%;height:7px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-bottom:12px">' +
+    '<div style="width:' + progress + '%;height:100%;background:#3b82f6;transition:width 1s linear"></div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px">' +
+    '<p style="font-size:12px;color:#9ca3af;margin:0">1분 뒤에 입장 여부를 다시 고를 수 있어요</p>' +
+    '<span style="flex:0 0 auto;font-size:12px;color:#2563eb;font-weight:700;background:#eff6ff;padding:4px 8px;border-radius:999px">' + completed + '개 완료</span>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">' + tasksHtml + '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+    '<input id="hn-task-input" type="text" maxlength="40" placeholder="예: 물 한 모금 마시기" style="flex:1;border:1px solid #d1d5db;border-radius:12px;padding:11px 12px;font:inherit;font-size:13px;color:#111827;outline:none">' +
+    '<button id="hn-task-add" type="button" style="border:none;border-radius:12px;background:#e0f2fe;color:#0369a1;font-weight:700;padding:0 14px;cursor:pointer;font-family:inherit">추가</button>' +
+    '</div>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:0">예시 목록과 직접 추가한 항목은 다음에도 저장돼요.</p>' +
+    '</div>';
+
+  root.getElementById('hn-challenge-cancel').addEventListener('click', () => {
+    hnClearTimers();
+    hnRemove();
+  });
+
+  root.querySelectorAll('[data-task-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const task = hn.smallTasks.find((item) => item.id === button.dataset.taskId);
+      if (!task) return;
+      task.done = !task.done;
+      hnRenderChallenge();
+    });
+  });
+
+  const addTask = () => {
+    const input = root.getElementById('hn-task-input');
+    if (!input) return;
+    const didAdd = hnAddSmallTask(input.value);
+    if (!didAdd) {
+      input.focus();
+      return;
+    }
+    input.value = '';
+    hnRenderChallenge();
+  };
+
+  root.getElementById('hn-task-add').addEventListener('click', addTask);
+  root.getElementById('hn-task-input').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    addTask();
+  });
+}
+
+function hnShowChallenge() {
+  hnLoadSmallTasks((texts) => {
+    hnResetSmallTasks(texts);
+    hn.challengeRemaining = HN_CHALLENGE_SECONDS;
+    hnStat('challenge20Started');
+    hnRenderChallenge();
+
+    hn.challengeInterval = setInterval(() => {
+      hn.challengeRemaining -= 1;
+      if (hn.challengeRemaining <= 0) {
+        clearInterval(hn.challengeInterval);
+        hn.challengeInterval = null;
+        hnStat('challenge20Completed');
+        hnShowChallengeComplete();
+        return;
+      }
+      hnRenderChallenge();
+    }, 1000);
+  });
+}
+
 function hnUpdateAutoBadge() {
   const root = hnRoot();
   if (!root) return;
@@ -986,7 +1200,7 @@ function hnShowIntent() {
     '</div>' +
     '<div style="display:flex;flex-direction:column;gap:12px">' +
     '<button id="hn-exit-now" style="padding:15px;background:white;color:#374151;border-radius:14px;font-weight:600;font-size:14px;border:2px solid #e5e7eb;cursor:pointer;font-family:inherit;text-align:left">👋 아차, 무의식적으로 눌렀어요</button>' +
-    '<button id="hn-challenge" style="padding:15px;background:linear-gradient(to right,#3b82f6,#2563eb);color:white;border-radius:14px;font-weight:600;font-size:14px;border:none;cursor:pointer;font-family:inherit;text-align:left">🌊 충동 파도타기 (20초 대기)</button>' +
+    '<button id="hn-challenge" style="padding:15px;background:linear-gradient(to right,#3b82f6,#2563eb);color:white;border-radius:14px;font-weight:600;font-size:14px;border:none;cursor:pointer;font-family:inherit;text-align:left">🌊 작은 할 일 하고 입장 (1분)</button>' +
     '<button id="hn-rest5" style="padding:13px;background:#f0f9ff;color:#0369a1;border-radius:12px;font-weight:500;font-size:13px;border:none;cursor:pointer;font-family:inherit;text-align:left">⏱️ 딱 1분만 보고 나올게요</button>' +
     '<div style="text-align:center;margin-top:4px">' +
     '<button id="hn-enter-anyway" style="padding:10px;background:transparent;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit">네, 지금 당장 필요해요 (즉시 입장)</button>' +
