@@ -18,11 +18,108 @@ function isDistractionSite(hostname) {
   return DISTRACTION_SITES.some((site) => hostname.includes(site));
 }
 
+const LINK_REMINDER_DELAY_MINUTES = 0.5;
+
+function normalizeHostname(hostname) {
+  return String(hostname || '').trim().toLowerCase().replace(/^www\./, '');
+}
+
+const TRACKING_QUERY_PREFIXES = ['utm_'];
+const TRACKING_QUERY_PARAMS = new Set([
+  'fbclid',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'mc_cid',
+  'mc_eid',
+  'igshid',
+  'si',
+  'spm',
+]);
+
+function isTrackingQueryParam(name) {
+  const normalized = String(name || '').toLowerCase();
+  return TRACKING_QUERY_PARAMS.has(normalized) ||
+    TRACKING_QUERY_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+function normalizeBypassUrlPattern(urlString) {
+  let url;
+  try {
+    url = new URL(urlString);
+  } catch (_error) {
+    return '';
+  }
+
+  const hostname = normalizeHostname(url.hostname);
+  if (!hostname || !url.protocol.startsWith('http')) return '';
+
+  const params = [];
+  url.searchParams.forEach((value, key) => {
+    if (!isTrackingQueryParam(key)) params.push([key, value]);
+  });
+  params.sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+    if (leftKey === rightKey) return leftValue.localeCompare(rightValue);
+    return leftKey.localeCompare(rightKey);
+  });
+
+  const search = new URLSearchParams(params).toString();
+  return hostname + url.pathname + (search ? '?' + search : '');
+}
+
+function isBypassedHost(hostname, settings = {}) {
+  const normalized = normalizeHostname(hostname);
+  if (!normalized) return false;
+
+  const bypassedHosts = settings.bypassedHosts || {};
+  const legacyHostMatch = Object.keys(bypassedHosts).some((entry) => {
+    if (!bypassedHosts[entry]) return false;
+    const host = normalizeHostname(entry);
+    return normalized === host || normalized.endsWith('.' + host);
+  });
+  if (legacyHostMatch) return true;
+
+  return (settings.bypassRules || []).some((rule) => {
+    if (!rule || rule.type !== 'host') return false;
+    const host = normalizeHostname(rule.value);
+    return normalized === host || normalized.endsWith('.' + host);
+  });
+}
+
+function isBypassedUrl(urlString, settings = {}) {
+  let url;
+  try {
+    url = new URL(urlString);
+  } catch (_error) {
+    return false;
+  }
+
+  if (isBypassedHost(url.hostname, settings)) return true;
+
+  const pattern = normalizeBypassUrlPattern(url.href);
+  if (!pattern) return false;
+
+  const bypassedUrlPatterns = settings.bypassedUrlPatterns || {};
+  if (bypassedUrlPatterns[pattern]) return true;
+
+  return (settings.bypassRules || []).some((rule) => (
+    rule?.type === 'urlPattern' && rule.value === pattern
+  ));
+}
+
+function isSameOrSubdomain(hostname, expectedHost) {
+  const normalizedHost = normalizeHostname(hostname);
+  const normalizedExpected = normalizeHostname(expectedHost);
+  if (!normalizedHost || !normalizedExpected) return false;
+  return normalizedHost === normalizedExpected || normalizedHost.endsWith('.' + normalizedExpected);
+}
+
 function shouldShowOverlay(urlString, settings = {}) {
   if (settings.enabled === false) return false;
 
   try {
     const url = new URL(urlString);
+    if (isBypassedUrl(url.href, settings)) return false;
     if (url.hostname.includes('youtube.com')) return false;
     return url.protocol.startsWith('http');
   } catch (_error) {
@@ -51,6 +148,8 @@ function createDefaultSettings() {
     alternatives: [],
     quietMinutes: DEFAULT_QUIET_MINUTES,
     quietUntilByHost: {},
+    bypassedHosts: {},
+    bypassRules: [],
     todayTask: '',
   };
 }
@@ -91,6 +190,50 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       chrome.tabs.sendMessage(tabId, { type: 'SHOW_OVERLAY' }).catch(() => {});
     });
   });
+
+  const armKey = 'linkReminderArm_' + tabId;
+  chrome.storage.session.get([armKey], (result) => {
+    const armed = result[armKey];
+    if (!armed) return;
+
+    let currentUrl;
+    try {
+      currentUrl = new URL(tab.url);
+    } catch (_error) {
+      chrome.storage.session.remove([armKey]);
+      return;
+    }
+
+    if (!currentUrl.protocol.startsWith('http')) {
+      chrome.storage.session.remove([armKey]);
+      return;
+    }
+
+    chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+      if (
+        settings.enabled === false ||
+        isBypassedUrl(currentUrl.href, settings) ||
+        currentUrl.hostname.includes('youtube.com')
+      ) {
+        chrome.storage.session.remove([armKey]);
+        return;
+      }
+
+      if (!isSameOrSubdomain(currentUrl.hostname, armed.host) && !isSameOrSubdomain(armed.host, currentUrl.hostname)) {
+        chrome.storage.session.remove([armKey]);
+        return;
+      }
+
+      chrome.alarms.create('link_reminder_' + tabId, { delayInMinutes: LINK_REMINDER_DELAY_MINUTES });
+      chrome.storage.session.set({
+        ['linkReminderActive_' + tabId]: {
+          host: normalizeHostname(currentUrl.hostname),
+          url: currentUrl.href,
+        },
+      });
+      chrome.storage.session.remove([armKey]);
+    });
+  });
 });
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -109,6 +252,30 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'ARM_LINK_REMINDER') {
+    const tabId = _sender?.tab?.id;
+    if (typeof tabId !== 'number') {
+      sendResponse({ success: false });
+      return false;
+    }
+
+    let url;
+    try {
+      url = new URL(message.url);
+    } catch (_error) {
+      sendResponse({ success: false });
+      return false;
+    }
+
+    chrome.storage.session.set({
+      ['linkReminderArm_' + tabId]: {
+        host: normalizeHostname(url.hostname),
+        url: url.href,
+      },
+    }, () => sendResponse({ success: true }));
+    return true;
+  }
+
   if (message.type === 'SET_SITE_QUIET') {
     chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
       const hostname = message.hostname;
@@ -129,6 +296,58 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           quietUntilByHost,
         },
       }, () => sendResponse({ success: true }));
+    });
+    return true;
+  }
+
+  if (message.type === 'SET_SITE_BYPASS') {
+    chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+      const hostname = normalizeHostname(message.hostname);
+      if (!hostname) {
+        sendResponse({ success: false });
+        return;
+      }
+
+      const existingRules = settings.bypassRules || [];
+      const hasRule = existingRules.some((rule) => (
+        rule?.type === 'host' && normalizeHostname(rule.value) === hostname
+      ));
+      const bypassRules = hasRule
+        ? existingRules
+        : [...existingRules, { type: 'host', value: hostname }];
+
+      chrome.storage.local.set({
+        settings: {
+          ...settings,
+          bypassRules,
+        },
+      }, () => sendResponse({ success: true, hostname }));
+    });
+    return true;
+  }
+
+  if (message.type === 'SET_URL_PATTERN_BYPASS') {
+    chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+      const pattern = normalizeBypassUrlPattern(message.url || message.pattern);
+      if (!pattern) {
+        sendResponse({ success: false });
+        return;
+      }
+
+      const existingRules = settings.bypassRules || [];
+      const hasRule = existingRules.some((rule) => (
+        rule?.type === 'urlPattern' && rule.value === pattern
+      ));
+      const bypassRules = hasRule
+        ? existingRules
+        : [...existingRules, { type: 'urlPattern', value: pattern }];
+
+      chrome.storage.local.set({
+        settings: {
+          ...settings,
+          bypassRules,
+        },
+      }, () => sendResponse({ success: true, pattern }));
     });
     return true;
   }
@@ -270,6 +489,51 @@ JSON 형식으로만 응답하세요: {"empathy":"공감 문장 1줄 (20자 이�
 
 // 30분 메아리 알람 처리
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith('link_reminder_')) {
+    const tabId = Number(alarm.name.replace('link_reminder_', ''));
+    if (!Number.isFinite(tabId)) return;
+
+    const activeKey = 'linkReminderActive_' + tabId;
+    chrome.storage.session.get([activeKey], (result) => {
+      const active = result[activeKey];
+      if (!active) return;
+
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab?.id || !tab.url) {
+          chrome.storage.session.remove([activeKey]);
+          return;
+        }
+
+        let currentUrl;
+        try {
+          currentUrl = new URL(tab.url);
+        } catch (_error) {
+          chrome.storage.session.remove([activeKey]);
+          return;
+        }
+
+        chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+          if (
+            settings.enabled === false ||
+            isBypassedUrl(currentUrl.href, settings) ||
+            currentUrl.hostname.includes('youtube.com') ||
+            !isSameOrSubdomain(currentUrl.hostname, active.host)
+          ) {
+            chrome.storage.session.remove([activeKey]);
+            return;
+          }
+
+          chrome.tabs.sendMessage(tabId, {
+            type: 'SHOW_LINK_REMINDER',
+            hostname: normalizeHostname(currentUrl.hostname),
+          }).catch(() => {});
+          chrome.storage.session.remove([activeKey]);
+        });
+      });
+    });
+    return;
+  }
+
   if (alarm.name !== 'echo_30min') return;
 
   chrome.storage.local.get(['echoEntry'], ({ echoEntry }) => {
