@@ -18,8 +18,6 @@ function isDistractionSite(hostname) {
   return DISTRACTION_SITES.some((site) => hostname.includes(site));
 }
 
-const LINK_REMINDER_DELAY_MINUTES = 0.5;
-
 function normalizeHostname(hostname) {
   return String(hostname || '').trim().toLowerCase().replace(/^www\./, '');
 }
@@ -127,6 +125,16 @@ function shouldShowOverlay(urlString, settings = {}) {
   }
 }
 
+function sendLinkReminder(tabId, hostname, attempts = 6) {
+  chrome.tabs.sendMessage(tabId, {
+    type: 'SHOW_LINK_REMINDER',
+    hostname,
+  }).catch(() => {
+    if (attempts <= 1) return;
+    setTimeout(() => sendLinkReminder(tabId, hostname, attempts - 1), 180);
+  });
+}
+
 function createDefaultStats() {
   return {
     awarenessCount: 0,
@@ -219,18 +227,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         return;
       }
 
-      if (!isSameOrSubdomain(currentUrl.hostname, armed.host) && !isSameOrSubdomain(armed.host, currentUrl.hostname)) {
-        chrome.storage.session.remove([armKey]);
-        return;
-      }
-
-      chrome.alarms.create('link_reminder_' + tabId, { delayInMinutes: LINK_REMINDER_DELAY_MINUTES });
-      chrome.storage.session.set({
-        ['linkReminderActive_' + tabId]: {
-          host: normalizeHostname(currentUrl.hostname),
-          url: currentUrl.href,
-        },
-      });
+      sendLinkReminder(tabId, normalizeHostname(currentUrl.hostname));
       chrome.storage.session.remove([armKey]);
     });
   });
@@ -523,10 +520,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
             return;
           }
 
-          chrome.tabs.sendMessage(tabId, {
-            type: 'SHOW_LINK_REMINDER',
-            hostname: normalizeHostname(currentUrl.hostname),
-          }).catch(() => {});
+          sendLinkReminder(tabId, normalizeHostname(currentUrl.hostname));
           chrome.storage.session.remove([activeKey]);
         });
       });

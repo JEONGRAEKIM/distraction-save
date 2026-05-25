@@ -122,6 +122,8 @@ chrome.storage.local.get(['stats'], ({ stats = {} }) => {
       choiceBadge = `<span class="history-alt">되돌아가기 ${item.points ? `+${item.points}P` : ''}</span>`;
     } else if (item.choice === 'quiet') {
       choiceBadge = `<span class="history-quiet">1분 쉬기 ${item.points ? `+${item.points}P` : ''}</span>`;
+    } else if (item.choice === 'quickExit') {
+      choiceBadge = `<span class="history-alt">빠른 이탈 ${item.points ? `+${item.points}P` : ''}</span>`;
     }
 
     const labelText = item.altLabel ? `<span class="history-label">${item.altLabel}</span>` : '';

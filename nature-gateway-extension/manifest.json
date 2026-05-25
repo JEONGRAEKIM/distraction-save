@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Nature Gateway Walk",
+  "version": "0.1.0",
+  "description": "A calm nature gateway for stepping out of overstimulating browsing.",
+  "permissions": [],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

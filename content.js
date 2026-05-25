@@ -6,9 +6,10 @@ const PRAYER_EMOTION_TAGS = ['지침', '외로움', '불안', '눈물', '무기�
 const REVEAL_MS = 120000;
 const REVEAL_SECONDS = Math.floor(REVEAL_MS / 1000);
 const OVERLAY_CLOSE_MS = 12000;
-const LINK_REMINDER_DELAY_SECONDS = 30;
-const LINK_REMINDER_AUTO_EXIT_SECONDS = 30;
+const LINK_REMINDER_DELAY_SECONDS = 0;
+const LINK_REMINDER_AUTO_EXIT_SECONDS = 5;
 const LINK_REMINDER_SNOOZE_SECONDS = 60;
+const LINK_REMINDER_QUICK_EXIT_POINTS = 10;
 const RANDOM_VIDEO_API_URL = 'https://nature-video-server-production.up.railway.app/api/random-video';
 const NEXT_VIDEO_PRELOAD_SECONDS = 3;
 const STALL_CHECK_MS = 2500;
@@ -21,6 +22,7 @@ const ds = {
   linkReminderShowTimer: null,
   linkReminderAutoExitTimer: null,
   linkReminderAutoExitTick: null,
+  linkReminderQuickExit: null,
   revealTimer: null,
   revealTick: null,
   homeRetry: null,
@@ -216,8 +218,35 @@ function clearLinkReminderTimers() {
   }
 }
 
+function recordLinkReminderQuickExit(reason = 'quickExit', callback) {
+  const active = ds.linkReminderQuickExit;
+  if (!active || active.rewarded) {
+    if (callback) callback();
+    return;
+  }
+
+  const elapsed = Date.now() - active.startedAt;
+  if (elapsed > LINK_REMINDER_AUTO_EXIT_SECONDS * 1000) {
+    if (callback) callback();
+    return;
+  }
+
+  active.rewarded = true;
+  chrome.runtime.sendMessage({
+    type: 'AWARENESS_RECORD',
+    site: location.hostname,
+    state: 'linkReminder',
+    choice: reason,
+    points: LINK_REMINDER_QUICK_EXIT_POINTS,
+  }, () => {
+    void chrome.runtime?.lastError;
+    if (callback) callback();
+  });
+}
+
 function removeLinkReminderPrompt() {
   clearLinkReminderTimers();
+  ds.linkReminderQuickExit = null;
   const host = document.getElementById('ds-link-reminder-host');
   if (!host) return;
   host.remove();
@@ -239,7 +268,7 @@ function scheduleLinkAutoExit(seconds) {
   }, seconds * 1000);
 }
 
-function showLinkReminderPrompt() {
+function showLegacyLinkReminderPrompt() {
   removeLinkReminderPrompt();
 
   const host = document.createElement('div');
@@ -336,6 +365,98 @@ function showLinkReminderPrompt() {
     }
   });
 }
+
+function showLinkReminderPrompt() {
+  removeLinkReminderPrompt();
+
+  const host = document.createElement('div');
+  host.id = 'ds-link-reminder-host';
+  document.documentElement.appendChild(host);
+
+  const root = host.attachShadow({ mode: 'open' });
+  let remaining = LINK_REMINDER_AUTO_EXIT_SECONDS;
+  ds.linkReminderQuickExit = {
+    startedAt: Date.now(),
+    rewarded: false,
+  };
+
+  root.innerHTML = [
+    '<style>',
+    ':host{all:initial}',
+    '*{box-sizing:border-box}',
+    '#wash{position:fixed;inset:0;z-index:2147483645;pointer-events:none;background:rgba(15,23,42,.10);',
+    'backdrop-filter:saturate(.62) blur(1.2px);animation:dsLrWash 5s linear forwards}',
+    '#lr{position:fixed;left:50%;top:14px;z-index:2147483647;width:min(720px,calc(100vw - 24px));',
+    'transform:translateX(-50%);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;',
+    'color:#111827;animation:dsLrDrop .22s ease-out}',
+    '#card{position:relative;overflow:hidden;border-radius:18px;padding:14px 14px 12px;background:rgba(255,255,255,.96);',
+    'border:1px solid rgba(15,23,42,.10);box-shadow:0 18px 46px rgba(15,23,42,.18);backdrop-filter:blur(14px)}',
+    '#row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center}',
+    '#pulse{width:34px;height:34px;border-radius:999px;background:#eef2ff;color:#4338ca;display:flex;align-items:center;',
+    'justify-content:center;font-size:17px;font-weight:900}',
+    '#ttl{margin:0 0 3px;font-size:15px;line-height:1.35;font-weight:800;letter-spacing:0}',
+    '#copy{margin:0;font-size:12.5px;line-height:1.45;color:#64748b}',
+    '#acts{display:flex;gap:8px;align-items:center}',
+    'button{border:none;border-radius:12px;padding:10px 12px;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}',
+    '.exit{background:#111827;color:#fff;font-weight:800}',
+    '.stay{background:#f1f5f9;color:#64748b;font-weight:700}',
+    '#count{display:inline-flex;min-width:22px;justify-content:center;color:#4f46e5;font-weight:900}',
+    '#bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:#e2e8f0}',
+    '#bar::after{content:"";display:block;height:100%;width:100%;background:linear-gradient(90deg,#4f46e5,#22c55e);',
+    'transform-origin:left;animation:dsLrBar 5s linear forwards}',
+    '@keyframes dsLrDrop{from{opacity:0;transform:translate(-50%,-14px)}to{opacity:1;transform:translate(-50%,0)}}',
+    '@keyframes dsLrBar{to{transform:scaleX(0)}}',
+    '@keyframes dsLrWash{to{background:rgba(15,23,42,.03);backdrop-filter:saturate(.9) blur(0)}}',
+    '@media (max-width:560px){#row{grid-template-columns:auto 1fr}#acts{grid-column:1 / -1}button{flex:1}}',
+    '</style>',
+    '<div id="wash"></div>',
+    '<div id="lr">',
+    '  <div id="card" role="dialog" aria-live="polite">',
+    '    <div id="row">',
+    '      <div id="pulse">!</div>',
+    '      <div>',
+    '        <h2 id="ttl">무의식적으로 들어온 페이지인가요?</h2>',
+    '        <p id="copy"><span id="count">5</span>초 안에 나가면 +' + LINK_REMINDER_QUICK_EXIT_POINTS + 'P를 받을 수 있어요. 화면을 살짝 흐려서 선택을 돕고 있어요.</p>',
+    '      </div>',
+    '      <div id="acts">',
+    '        <button class="exit" data-a="exit-now">지금 나가기 +' + LINK_REMINDER_QUICK_EXIT_POINTS + 'P</button>',
+    '        <button class="stay" data-a="continue">계속 보기</button>',
+    '      </div>',
+    '    </div>',
+    '    <div id="bar"></div>',
+    '  </div>',
+    '</div>',
+  ].join('');
+
+  const countEl = root.getElementById('count');
+  ds.linkReminderAutoExitTick = setInterval(() => {
+    remaining -= 1;
+    if (countEl) countEl.textContent = String(Math.max(0, remaining));
+  }, 1000);
+
+  ds.linkReminderAutoExitTimer = setTimeout(() => {
+    removeLinkReminderPrompt();
+  }, LINK_REMINDER_AUTO_EXIT_SECONDS * 1000);
+
+  root.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-a]');
+    if (!button) return;
+
+    if (button.dataset.a === 'exit-now') {
+      recordLinkReminderQuickExit('quickExit', () => {
+        removeLinkReminderPrompt();
+        history.back();
+      });
+      return;
+    }
+
+    removeLinkReminderPrompt();
+  });
+}
+
+window.addEventListener('pagehide', () => {
+  recordLinkReminderQuickExit('quickExit');
+});
 
 function interceptPopupNavigation(popup, nextUrl) {
   if (!shouldInterceptUrlString(nextUrl, ds.settings || {})) return false;
@@ -1237,6 +1358,7 @@ const hn = {
   celebrateIndex: 0,
   smallTasks: [],
   smallTaskSeq: 0,
+  todayResistCount: 0,
 };
 
 function hnRemove() {
@@ -1269,6 +1391,58 @@ function hnStat(key) {
   } catch (_error) {
     // Extension reload/update can invalidate the content-script context.
     // Stats are best-effort only, so navigation should keep working.
+  }
+}
+
+function hnGetTodayCount(cb) {
+  try {
+    if (!globalThis.chrome?.storage?.local) { cb(0); return; }
+    chrome.storage.local.get(['hnStats'], (result) => {
+      if (chrome.runtime?.lastError) { cb(0); return; }
+      const s = result?.hnStats || {};
+      const today = new Date().toDateString();
+      cb(s.todayResistDate === today ? (s.todayResistCount || 0) : 0);
+    });
+  } catch (_error) { cb(0); }
+}
+
+function hnResistMessage(count) {
+  if (count >= 20) return '오늘 무적이에요 🔥';
+  if (count >= 10) return '완전히 이겨냈어요. 오늘 정말 대단해요!';
+  if (count >= 5) return '오늘 5번 버텼어요. 강해지고 있어요.';
+  if (count >= 3) return '3번이나 이겨냈어요. 의지력이 쌓이고 있어요.';
+  if (count === 2) return '또 참아냈어요. 습관이 되어가고 있어요.';
+  return '첫 번째로 참아냈어요. 잘 시작했어요.';
+}
+
+function hnResistAndShow(afterFn) {
+  try {
+    if (!globalThis.chrome?.storage?.local) {
+      hn.todayResistCount += 1;
+      hnShowCelebrate('exitNow', afterFn);
+      return;
+    }
+    chrome.storage.local.get(['hnStats'], (result) => {
+      if (chrome.runtime?.lastError) {
+        hn.todayResistCount += 1;
+        hnShowCelebrate('exitNow', afterFn);
+        return;
+      }
+      const s = result?.hnStats || {};
+      const today = new Date().toDateString();
+      const prevCount = s.todayResistDate === today ? (s.todayResistCount || 0) : 0;
+      const newCount = prevCount + 1;
+      s.resistCount = (s.resistCount || 0) + 1;
+      s.exitNowCount = (s.exitNowCount || 0) + 1;
+      s.todayResistCount = newCount;
+      s.todayResistDate = today;
+      chrome.storage.local.set({ hnStats: s }, () => { void chrome.runtime?.lastError; });
+      hn.todayResistCount = newCount;
+      hnShowCelebrate('exitNow', afterFn);
+    });
+  } catch (_error) {
+    hn.todayResistCount += 1;
+    hnShowCelebrate('exitNow', afterFn);
   }
 }
 
@@ -1373,15 +1547,24 @@ function hnShowCelebrate(type, afterFn) {
   if (!root) return;
   hnClearTimers();
 
-  const messages = HN_MESSAGES[type];
-  const msg = messages[hn.celebrateIndex % messages.length];
-  hn.celebrateIndex += 1;
+  let msg;
+  if (type === 'exitNow') {
+    msg = hnResistMessage(hn.todayResistCount);
+  } else {
+    const messages = HN_MESSAGES[type];
+    msg = messages[hn.celebrateIndex % messages.length];
+    hn.celebrateIndex += 1;
+  }
 
   const card = root.getElementById('hn-card');
+  const headline = type === 'exitNow'
+    ? '<p style="font-size:22px;font-weight:800;color:#111827;margin:0 0 8px">오늘 ' + hn.todayResistCount + '번 참아냈어요!</p>'
+    : '';
   card.innerHTML =
     '<div style="text-align:center;padding:44px 24px">' +
     '<div style="font-size:64px;margin-bottom:16px">🎉</div>' +
-    '<p style="font-size:17px;font-weight:600;color:#111827;line-height:1.5;margin:0">' +
+    headline +
+    '<p style="font-size:15px;font-weight:500;color:#6b7280;line-height:1.5;margin:0">' +
     esc(msg) +
     '</p>' +
     '</div>';
@@ -1615,9 +1798,10 @@ function hnShowIntent() {
     '<span id="hn-auto-badge" style="font-size:11px;color:#6b7280;background:#fef9c3;padding:3px 9px;border-radius:999px;font-weight:600;border:1px solid #fde047">자동 종료 30</span>' +
     '</div>' +
     '<p style="font-size:14px;color:#6b7280;margin:0;line-height:1.5">무의식적으로 누른 건 아닌가요?</p>' +
+    (hn.todayResistCount > 0 ? '<p style="font-size:12px;color:#6366f1;margin:8px 0 0;font-weight:600">오늘 ' + hn.todayResistCount + '번 참아냈어요 ✓</p>' : '') +
     '</div>' +
     '<div style="display:flex;flex-direction:column;gap:12px">' +
-    '<button id="hn-exit-now" style="padding:15px;background:white;color:#374151;border-radius:14px;font-weight:600;font-size:14px;border:2px solid #e5e7eb;cursor:pointer;font-family:inherit;text-align:left">👋 아차, 무의식적으로 눌렀어요</button>' +
+    '<button id="hn-exit-now" style="padding:15px;background:linear-gradient(to right,#6366f1,#4f46e5);color:white;border-radius:14px;font-weight:700;font-size:14px;border:none;cursor:pointer;font-family:inherit;text-align:left">💪 참아내기 (+10P)</button>' +
     '<button id="hn-challenge" style="padding:15px;background:linear-gradient(to right,#3b82f6,#2563eb);color:white;border-radius:14px;font-weight:600;font-size:14px;border:none;cursor:pointer;font-family:inherit;text-align:left">🌊 작은 할 일 하고 입장 (2분)</button>' +
     '<button id="hn-rest5" style="padding:13px;background:#f0f9ff;color:#0369a1;border-radius:12px;font-weight:500;font-size:13px;border:none;cursor:pointer;font-family:inherit;text-align:left">⏱️ 딱 2분만 보고 나올게요</button>' +
     '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">' +
@@ -1631,9 +1815,7 @@ function hnShowIntent() {
   root.getElementById('hn-close').addEventListener('click', hnRemove);
   root.getElementById('hn-exit-now').addEventListener('click', () => {
     hnClearTimers();
-    hnStat('resistCount');
-    hnStat('exitNowCount');
-    hnShowCelebrate('exitNow', hnRemove);
+    hnResistAndShow(hnRemove);
   });
   root.getElementById('hn-challenge').addEventListener('click', () => {
     hnClearTimers();
@@ -1675,9 +1857,7 @@ function hnShowIntent() {
     if (hn.autoExitRemaining <= 0) {
       clearInterval(hn.autoExitInterval);
       hn.autoExitInterval = null;
-      hnStat('resistCount');
-      hnStat('exitNowCount');
-      hnShowCelebrate('exitNow', hnRemove);
+      hnResistAndShow(hnRemove);
     }
   }, 1000);
 }
@@ -1888,7 +2068,10 @@ function buildHonestNudgeModal(targetUrl) {
     if (e.target.id === 'hn-overlay') hnRemove();
   });
 
-  hnShowIntent();
+  hnGetTodayCount((count) => {
+    hn.todayResistCount = count;
+    hnShowIntent();
+  });
 }
 
 // 웹페이지 링크 클릭 인터셉트 (캡처 페이즈)
