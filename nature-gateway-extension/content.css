@@ -1,0 +1,433 @@
+.ngw-root,
+.ngw-root * {
+  box-sizing: border-box;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ngw-root {
+  color-scheme: light;
+}
+
+.ngw-launcher {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 2147483646;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 45% 28%, rgba(255, 255, 255, 0.9), transparent 24%),
+    linear-gradient(145deg, #5f8c6c 0%, #234f3c 58%, #173326 100%);
+  box-shadow: 0 14px 34px rgba(17, 35, 27, 0.28);
+  color: #f7fff8;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.ngw-launcher:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(17, 35, 27, 0.34);
+}
+
+.ngw-launcher svg {
+  width: 27px;
+  height: 27px;
+}
+
+.ngw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: none;
+  overflow: hidden;
+  background: #0f1713;
+}
+
+.ngw-root[data-open="true"] .ngw-overlay {
+  display: block;
+}
+
+.ngw-panel {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.ngw-panel[data-active="true"] {
+  display: block;
+}
+
+.ngw-intake,
+.ngw-picker {
+  background:
+    linear-gradient(rgba(10, 24, 19, 0.2), rgba(10, 24, 19, 0.76)),
+    radial-gradient(circle at 50% 16%, rgba(246, 255, 231, 0.2), transparent 34%),
+    linear-gradient(135deg, #668a73 0%, #234c3d 50%, #111f1b 100%);
+}
+
+.ngw-intake::before,
+.ngw-intake::after,
+.ngw-picker::before,
+.ngw-picker::after {
+  content: "";
+  position: absolute;
+  inset: auto -8% 0;
+  height: 35%;
+  background:
+    radial-gradient(ellipse at 18% 100%, #1c3f2f 0 34%, transparent 35%),
+    radial-gradient(ellipse at 48% 105%, #173525 0 42%, transparent 43%),
+    radial-gradient(ellipse at 78% 103%, #234d39 0 36%, transparent 37%);
+  opacity: 0.92;
+}
+
+.ngw-intake::after,
+.ngw-picker::after {
+  bottom: -13%;
+  height: 44%;
+  filter: blur(1px);
+  opacity: 0.7;
+}
+
+.ngw-intake-content,
+.ngw-picker-content {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+
+.ngw-question {
+  width: min(540px, calc(100vw - 40px));
+  text-align: center;
+}
+
+.ngw-question h1 {
+  margin: 0 0 28px;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: clamp(28px, 5vw, 52px);
+  line-height: 1.08;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.ngw-start {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #173326;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 720;
+  margin: 0 0 14px;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.ngw-start:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.ngw-choice-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.ngw-scene-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.ngw-choice {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(250, 255, 247, 0.14);
+  color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 560;
+  backdrop-filter: blur(16px);
+  transition: background 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+
+.ngw-scene-choice {
+  width: 100%;
+  min-height: 62px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(250, 255, 247, 0.14);
+  color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 650;
+  backdrop-filter: blur(16px);
+  transition: background 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+
+.ngw-scene-choice:hover,
+.ngw-scene-choice[data-active="true"] {
+  transform: translateY(-1px);
+  background: rgba(250, 255, 247, 0.24);
+  border-color: rgba(255, 255, 255, 0.48);
+}
+
+.ngw-choice:hover {
+  transform: translateY(-1px);
+  background: rgba(250, 255, 247, 0.22);
+  border-color: rgba(255, 255, 255, 0.44);
+}
+
+.ngw-close {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: rgba(8, 18, 15, 0.22);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.ngw-walk {
+  cursor: crosshair;
+}
+
+.ngw-scene {
+  position: absolute;
+  inset: -45%;
+  overflow: hidden;
+  transform: translate3d(var(--ngw-x, 0), var(--ngw-y, 0), 0) scale(var(--ngw-zoom, 1));
+  transform-origin: center;
+  will-change: transform;
+  background:
+    linear-gradient(rgba(12, 23, 18, 0.02), rgba(12, 23, 18, 0.28)),
+    var(--ngw-photo),
+    linear-gradient(180deg, #d8ecf3 0%, #f7f1d8 29%, #83b08f 50%, #315c45 74%, #15271f 100%);
+  background-size: cover, cover, cover;
+  background-position: center;
+}
+
+.ngw-sky,
+.ngw-mountains,
+.ngw-trees,
+.ngw-lake,
+.ngw-light,
+.ngw-mist {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ngw-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.ngw-root[data-video="true"] .ngw-video {
+  display: block;
+}
+
+.ngw-root[data-video="true"] .ngw-sky,
+.ngw-root[data-video="true"] .ngw-mountains,
+.ngw-root[data-video="true"] .ngw-trees,
+.ngw-root[data-video="true"] .ngw-lake,
+.ngw-root[data-video="true"] .ngw-mist {
+  display: none;
+}
+
+.ngw-root[data-photo="true"] .ngw-sky,
+.ngw-root[data-photo="true"] .ngw-mountains,
+.ngw-root[data-photo="true"] .ngw-trees,
+.ngw-root[data-photo="true"] .ngw-lake {
+  display: none;
+}
+
+.ngw-sky {
+  transform: translate3d(calc(var(--ngw-x, 0) * -0.03), calc(var(--ngw-y, 0) * -0.02), 0);
+  background:
+    radial-gradient(circle at 38% 20%, rgba(255, 251, 218, 0.85), transparent 7%),
+    radial-gradient(circle at 40% 20%, rgba(255, 241, 176, 0.28), transparent 20%),
+    linear-gradient(180deg, rgba(159, 207, 219, 0.95), rgba(236, 231, 194, 0.4) 46%, transparent 47%);
+}
+
+.ngw-mountains {
+  transform: translate3d(calc(var(--ngw-x, 0) * -0.1), calc(var(--ngw-y, 0) * -0.05), 0);
+  background:
+    linear-gradient(140deg, transparent 0 28%, #6c8b7e 29% 45%, transparent 46%) 0 35% / 46% 42% no-repeat,
+    linear-gradient(220deg, transparent 0 25%, #486f61 26% 49%, transparent 50%) 31% 34% / 58% 44% no-repeat,
+    linear-gradient(135deg, transparent 0 30%, #587d6e 31% 54%, transparent 55%) 72% 37% / 42% 36% no-repeat;
+  opacity: 0.96;
+}
+
+.ngw-trees {
+  transform: translate3d(calc(var(--ngw-x, 0) * -0.22), calc(var(--ngw-y, 0) * -0.1), 0);
+  background:
+    radial-gradient(ellipse at 8% 63%, #244d38 0 9%, transparent 10%),
+    radial-gradient(ellipse at 21% 61%, #1c3f2f 0 12%, transparent 13%),
+    radial-gradient(ellipse at 35% 65%, #315f43 0 10%, transparent 11%),
+    radial-gradient(ellipse at 68% 60%, #214934 0 12%, transparent 13%),
+    radial-gradient(ellipse at 84% 63%, #183929 0 15%, transparent 16%),
+    linear-gradient(180deg, transparent 0 55%, #254c37 56% 72%, transparent 73%);
+}
+
+.ngw-lake {
+  top: 50%;
+  transform: translate3d(calc(var(--ngw-x, 0) * -0.36), calc(var(--ngw-y, 0) * -0.18), 0);
+  background:
+    repeating-linear-gradient(178deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, rgba(112, 160, 151, 0.96), rgba(30, 75, 73, 0.96) 58%, rgba(17, 45, 43, 1));
+  clip-path: polygon(4% 8%, 96% 0, 100% 100%, 0 100%);
+  opacity: 0.92;
+}
+
+.ngw-light {
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(255, 244, 193, 0.12), transparent 33%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 22%, transparent 70%, rgba(4, 12, 11, 0.36));
+  mix-blend-mode: screen;
+}
+
+.ngw-mist {
+  inset: 45% -20% auto;
+  height: 28%;
+  background:
+    linear-gradient(90deg, transparent, rgba(247, 255, 240, 0.22), transparent),
+    linear-gradient(90deg, rgba(247, 255, 240, 0.02), rgba(247, 255, 240, 0.14), rgba(247, 255, 240, 0.02));
+  filter: blur(18px);
+  animation: ngwMist 16s ease-in-out infinite alternate;
+}
+
+@keyframes ngwMist {
+  from {
+    transform: translateX(-3%);
+  }
+
+  to {
+    transform: translateX(3%);
+  }
+}
+
+.ngw-walk-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 0 48%, rgba(4, 12, 10, 0.24) 100%);
+}
+
+.ngw-walk-copy {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  width: min(680px, calc(100vw - 42px));
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.36);
+}
+
+.ngw-walk-copy p {
+  margin: 0;
+  font-size: clamp(18px, 2.4vw, 28px);
+  line-height: 1.5;
+  font-weight: 520;
+  letter-spacing: 0;
+}
+
+.ngw-hint {
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  pointer-events: none;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.34);
+}
+
+.ngw-return {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  z-index: 3;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 8px;
+  background: rgba(250, 255, 247, 0.18);
+  color: white;
+  cursor: pointer;
+  display: none;
+  padding: 0 18px;
+  font-size: 15px;
+  font-weight: 650;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+
+.ngw-select-scene {
+  position: absolute;
+  right: 150px;
+  bottom: 22px;
+  z-index: 3;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(8, 18, 15, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 650;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+
+.ngw-select-scene:hover,
+.ngw-return:hover {
+  background: rgba(250, 255, 247, 0.26);
+}
+
+.ngw-return[data-ready="true"] {
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .ngw-launcher {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .ngw-hint {
+    display: none;
+  }
+
+  .ngw-return {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .ngw-select-scene {
+    right: 142px;
+    bottom: 16px;
+  }
+}
