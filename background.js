@@ -11,23 +11,34 @@ const DISTRACTION_SITES = [
 ];
 
 const DEFAULT_QUIET_MINUTES = 10;
-const QUIET_MS = DEFAULT_QUIET_MINUTES * 60 * 1000; // 10분
 const HISTORY_LIMIT = 50;
 
 function isDistractionSite(hostname) {
   return DISTRACTION_SITES.some((site) => hostname.includes(site));
 }
 
-function shouldShowOverlay(urlString, settings = {}) {
-  if (settings.enabled === false) return false;
+const LINK_REMINDER_DELAY_MINUTES = 0.5;
 
-  try {
-    const url = new URL(urlString);
-    if (url.hostname.includes('youtube.com')) return false;
-    return url.protocol.startsWith('http');
-  } catch (_error) {
-    return false;
-  }
+function normalizeHostname(hostname) {
+  return String(hostname || '').trim().toLowerCase().replace(/^www\./, '');
+}
+
+function isBypassedHost(hostname, settings = {}) {
+  const normalized = normalizeHostname(hostname);
+  if (!normalized) return false;
+
+  const bypassedHosts = settings.bypassedHosts || {};
+  return Object.keys(bypassedHosts).some((entry) => {
+    if (!bypassedHosts[entry]) return false;
+    return normalized === entry || normalized.endsWith('.' + entry);
+  });
+}
+
+function isSameOrSubdomain(hostname, expectedHost) {
+  const normalizedHost = normalizeHostname(hostname);
+  const normalizedExpected = normalizeHostname(expectedHost);
+  if (!normalizedHost || !normalizedExpected) return false;
+  return normalizedHost === normalizedExpected || normalizedHost.endsWith('.' + normalizedExpected);
 }
 
 function createDefaultStats() {
@@ -46,13 +57,14 @@ function createDefaultStats() {
 }
 
 function createDefaultSettings() {
-  return {
-    enabled: true,
-    alternatives: [],
-    quietMinutes: DEFAULT_QUIET_MINUTES,
-    quietUntilByHost: {},
-    todayTask: '',
-  };
+    return {
+      enabled: true,
+      alternatives: [],
+      quietMinutes: DEFAULT_QUIET_MINUTES,
+      quietUntilByHost: {},
+      bypassedHosts: {},
+      todayTask: '',
+    };
 }
 
 function rotateDailyStats(stats) {
@@ -72,23 +84,47 @@ function rotateDailyStats(stats) {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab.url) return;
 
-  chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
-    if (!shouldShowOverlay(tab.url, settings)) return;
+  const armKey = 'linkReminderArm_' + tabId;
+  chrome.storage.session.get([armKey], (result) => {
+    const armed = result[armKey];
+    if (!armed) return;
 
-    let hostname;
+    let currentUrl;
     try {
-      hostname = new URL(tab.url).hostname;
-    } catch (_) { return; }
+      currentUrl = new URL(tab.url);
+    } catch (_error) {
+      chrome.storage.session.remove([armKey]);
+      return;
+    }
 
-    const cooldownKey = 'cd_' + hostname;
+    if (!currentUrl.protocol.startsWith('http')) {
+      chrome.storage.session.remove([armKey]);
+      return;
+    }
 
-    // chrome.storage.session은 service worker 재시작에도 유지됨
-    chrome.storage.session.get([cooldownKey], (result) => {
-      const lastShown = result[cooldownKey] || 0;
-      if (Date.now() - lastShown < QUIET_MS) return;
+    chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+      if (
+        settings.enabled === false ||
+        isBypassedHost(currentUrl.hostname, settings) ||
+        currentUrl.hostname.includes('youtube.com')
+      ) {
+        chrome.storage.session.remove([armKey]);
+        return;
+      }
 
-      chrome.storage.session.set({ [cooldownKey]: Date.now() });
-      chrome.tabs.sendMessage(tabId, { type: 'SHOW_OVERLAY' }).catch(() => {});
+      if (!isSameOrSubdomain(currentUrl.hostname, armed.host) && !isSameOrSubdomain(armed.host, currentUrl.hostname)) {
+        chrome.storage.session.remove([armKey]);
+        return;
+      }
+
+      chrome.alarms.create('link_reminder_' + tabId, { delayInMinutes: LINK_REMINDER_DELAY_MINUTES });
+      chrome.storage.session.set({
+        ['linkReminderActive_' + tabId]: {
+          host: normalizeHostname(currentUrl.hostname),
+          url: currentUrl.href,
+        },
+      });
+      chrome.storage.session.remove([armKey]);
     });
   });
 });
@@ -109,6 +145,30 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'ARM_LINK_REMINDER') {
+    const tabId = _sender?.tab?.id;
+    if (typeof tabId !== 'number') {
+      sendResponse({ success: false });
+      return false;
+    }
+
+    let url;
+    try {
+      url = new URL(message.url);
+    } catch (_error) {
+      sendResponse({ success: false });
+      return false;
+    }
+
+    chrome.storage.session.set({
+      ['linkReminderArm_' + tabId]: {
+        host: normalizeHostname(url.hostname),
+        url: url.href,
+      },
+    }, () => sendResponse({ success: true }));
+    return true;
+  }
+
   if (message.type === 'SET_SITE_QUIET') {
     chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
       const hostname = message.hostname;
@@ -129,6 +189,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           quietUntilByHost,
         },
       }, () => sendResponse({ success: true }));
+    });
+    return true;
+  }
+
+  if (message.type === 'SET_SITE_BYPASS') {
+    chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+      const hostname = normalizeHostname(message.hostname);
+      if (!hostname) {
+        sendResponse({ success: false });
+        return;
+      }
+
+      const bypassedHosts = {
+        ...(settings.bypassedHosts || {}),
+        [hostname]: true,
+      };
+
+      chrome.storage.local.set({
+        settings: {
+          ...settings,
+          bypassedHosts,
+        },
+      }, () => sendResponse({ success: true, hostname }));
     });
     return true;
   }
@@ -265,11 +348,63 @@ JSON 형식으로만 응답하세요: {"empathy":"공감 문장 1줄 (20자 이�
     return true;
   }
 
+  if (message.type === 'CLOSE_CURRENT_WINDOW') {
+    chrome.windows.getCurrent((win) => {
+      if (win?.id != null) chrome.windows.remove(win.id);
+    });
+    return false;
+  }
+
   return false;
 });
 
 // 30분 메아리 알람 처리
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith('link_reminder_')) {
+    const tabId = Number(alarm.name.replace('link_reminder_', ''));
+    if (!Number.isFinite(tabId)) return;
+
+    const activeKey = 'linkReminderActive_' + tabId;
+    chrome.storage.session.get([activeKey], (result) => {
+      const active = result[activeKey];
+      if (!active) return;
+
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab?.id || !tab.url) {
+          chrome.storage.session.remove([activeKey]);
+          return;
+        }
+
+        let currentUrl;
+        try {
+          currentUrl = new URL(tab.url);
+        } catch (_error) {
+          chrome.storage.session.remove([activeKey]);
+          return;
+        }
+
+        chrome.storage.local.get(['settings'], ({ settings = createDefaultSettings() }) => {
+          if (
+            settings.enabled === false ||
+            isBypassedHost(currentUrl.hostname, settings) ||
+            currentUrl.hostname.includes('youtube.com') ||
+            !isSameOrSubdomain(currentUrl.hostname, active.host)
+          ) {
+            chrome.storage.session.remove([activeKey]);
+            return;
+          }
+
+          chrome.tabs.sendMessage(tabId, {
+            type: 'SHOW_LINK_REMINDER',
+            hostname: normalizeHostname(currentUrl.hostname),
+          }).catch(() => {});
+          chrome.storage.session.remove([activeKey]);
+        });
+      });
+    });
+    return;
+  }
+
   if (alarm.name !== 'echo_30min') return;
 
   chrome.storage.local.get(['echoEntry'], ({ echoEntry }) => {
