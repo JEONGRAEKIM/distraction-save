@@ -76,6 +76,30 @@ function shouldInterceptAnchor(anchor, settings = {}) {
   return true;
 }
 
+function findVideoAnchorForClick(target, settings = {}) {
+  if (!(target instanceof Element)) return null;
+
+  const directAnchor = target.closest('a[href]');
+  if (directAnchor) return directAnchor;
+
+  const metadataRow = target.closest('.ytContentMetadataViewModelMetadataRow');
+  if (!metadataRow) return null;
+
+  const videoCard = metadataRow.closest([
+    'yt-lockup-view-model',
+    '.yt-lockup-view-model',
+    'ytd-rich-item-renderer',
+    'ytd-video-renderer',
+    'ytd-grid-video-renderer',
+    'ytd-compact-video-renderer',
+    'ytd-playlist-video-renderer',
+  ].join(','));
+  if (!videoCard) return null;
+
+  return Array.from(videoCard.querySelectorAll('a[href]'))
+    .find((anchor) => shouldInterceptAnchor(anchor, settings)) || null;
+}
+
 function shouldInterceptUrlString(urlString, settings = {}) {
   if (!urlString || urlString === 'about:blank') return false;
 
@@ -748,7 +772,7 @@ function hnShowResistConfirm(todayPoints) {
     '<p style="font-size:17px;font-weight:700;color:#111827;line-height:1.5;margin:0">' + esc(message) + '</p>' +
     '</div>';
 
-  setTimeout(hnRemove, 1300);
+  setTimeout(hnRemove, 1000);
 }
 
 function buildHonestNudgeModal(targetUrl) {
@@ -847,7 +871,10 @@ function buildHonestNudgeModal(targetUrl) {
     '</div></div>';
 
   root.getElementById('hn-overlay').addEventListener('click', (e) => {
-    if (e.target.id === 'hn-overlay') hnRemove();
+    const card = root.getElementById('hn-card');
+    if (card && !card.contains(e.target)) {
+      hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
+    }
   });
 
   hnShowReasonCard();
@@ -860,7 +887,7 @@ document.addEventListener('click', (e) => {
   if (e.button !== 0) return;
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
-  const anchor = e.target.closest('a[href]');
+  const anchor = findVideoAnchorForClick(e.target, ds.settings || {});
   if (!anchor) return;
   if (!shouldInterceptAnchor(anchor, ds.settings || {})) return;
 
