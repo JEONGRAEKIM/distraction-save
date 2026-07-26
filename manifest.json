@@ -21,7 +21,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["content.js", "gate-words.js", "gate-cards.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

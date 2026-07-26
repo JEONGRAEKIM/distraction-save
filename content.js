@@ -872,12 +872,20 @@ function buildHonestNudgeModal(targetUrl) {
 
   root.getElementById('hn-overlay').addEventListener('click', (e) => {
     const card = root.getElementById('hn-card');
-    if (card && !card.contains(e.target)) {
-      hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
-    }
+    if (!card || card.contains(e.target)) return;
+
+    // 찰나 카드(영어/계획)일 때는 바깥 클릭도 그냥 통과시킨다.
+    if (typeof dsGateHandleOutsideClick === 'function' && dsGateHandleOutsideClick()) return;
+
+    hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
   });
 
-  hnShowReasonCard();
+  // 이유 카드 → 영어 카드 → 계획 카드 순으로 번갈아 노출한다.
+  if (typeof dsGateRoute === 'function') {
+    dsGateRoute();
+  } else {
+    hnShowReasonCard();
+  }
 }
 
 // 웹페이지 링크 클릭 인터셉트 (캡처 페이즈)
