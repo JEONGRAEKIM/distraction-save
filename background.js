@@ -1,3 +1,7 @@
+// 책 본문은 확장 origin의 IndexedDB에 있고 content script는 거기에 닿을 수
+// 없다. 그래서 여기가 유일한 통로가 된다(BOOK_CHUNKS).
+importScripts('book-store.js');
+
 const DISTRACTION_SITES = [
   'youtube.com',
   'instagram.com',
@@ -145,6 +149,31 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'BOOK_CHUNKS') {
+    dsBookReadChunks(Number(message.from) || 0, Number(message.to) || 0)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      // 책을 못 읽어도 카드 자체는 살아 있어야 하므로 실패를 그대로 알린다.
+      .catch(() => sendResponse({ ok: false, blocks: [], fromIndex: 0 }));
+    return true;
+  }
+
+  if (message.type === 'BOOK_IMAGE') {
+    dsBookReadImage(message.key)
+      .then((dataUrl) => sendResponse({ ok: Boolean(dataUrl), d: dataUrl }))
+      .catch(() => sendResponse({ ok: false, d: null }));
+    return true;
+  }
+
+  if (message.type === 'OPEN_BOOK_SETUP') {
+    // 등록은 팝업이 아니라 별도 탭에서 한다. 큰 PDF는 파싱에 시간이 걸리는데
+    // 팝업은 클릭 한 번만 밖으로 나가도 닫히면서 작업이 통째로 중단된다.
+    chrome.tabs.create({ url: chrome.runtime.getURL('reader-setup.html') }, () => {
+      void chrome.runtime?.lastError;
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
   if (message.type === 'ARM_LINK_REMINDER') {
     const tabId = _sender?.tab?.id;
     if (typeof tabId !== 'number') {

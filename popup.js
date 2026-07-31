@@ -72,6 +72,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
   });
 
+  const bookBtn = document.getElementById('book-btn');
+  const bookBtnTitle = document.getElementById('book-btn-title');
+
+  chrome.storage.local.get(['bookMeta'], ({ bookMeta }) => {
+    if (bookMeta?.title) bookBtnTitle.textContent = bookMeta.title;
+  });
+
+  bookBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('reader-setup.html') });
+  });
+
   statsBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('stats.html') });
   });

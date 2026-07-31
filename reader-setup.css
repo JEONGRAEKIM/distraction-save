@@ -1,0 +1,173 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+  font-size: 14px;
+  background: #f7faf9;
+  color: #18212a;
+  padding: 40px 20px 60px;
+}
+
+#page {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.head { margin-bottom: 22px; }
+
+.head h1 {
+  font-family: Georgia, 'Nanum Myeongjo', serif;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.head-sub {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #6b7a86;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e3ebe8;
+  border-radius: 18px;
+  margin-bottom: 14px;
+}
+
+/* 등록된 책 */
+
+.current {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 18px 18px 20px;
+  background: #F7F1E4;
+  border-color: #e6dcc6;
+}
+
+.current-icon { font-size: 26px; }
+
+.current-text { flex: 1; min-width: 0; }
+
+.current-title {
+  font-family: Georgia, 'Nanum Myeongjo', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2A2418;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-meta {
+  font-size: 12px;
+  color: #9A8E76;
+  margin-top: 4px;
+}
+
+.ghost-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(42, 36, 24, 0.18);
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8A7E66;
+  transition: background .15s, color .15s;
+}
+
+.ghost-btn:hover { background: rgba(42, 36, 24, 0.06); color: #2A2418; }
+
+/* 파일 놓는 곳 */
+
+.drop {
+  border: 2px dashed #cfdcd6;
+  padding: 44px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.drop:hover, .drop.over { border-color: #0f8c64; background: #f2fbf7; }
+
+.drop-icon {
+  font-size: 30px;
+  color: #9fb3ab;
+  margin-bottom: 12px;
+}
+
+.drop-title { font-size: 14.5px; font-weight: 600; margin-bottom: 6px; }
+
+.drop-sub { font-size: 12.5px; color: #8b9aa4; }
+
+/* 진행 */
+
+.progress { padding: 22px 20px; }
+
+.progress-label { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+
+.progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #e8efec;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2fe6a8, #0f8c64);
+  transition: width .2s ease;
+}
+
+.progress-note { font-size: 12px; color: #8b9aa4; margin-top: 10px; }
+
+/* 알림 */
+
+.message {
+  padding: 13px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.message.ok { background: #e8f8f1; color: #0b6c4d; }
+.message.bad { background: #fdeceb; color: #a3352c; }
+
+/* 안내 */
+
+.note {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid #e3ebe8;
+}
+
+.note h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #8b9aa4;
+  margin-bottom: 10px;
+}
+
+.note ul { list-style: none; }
+
+.note li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #6b7a86;
+}
+
+.note li::before {
+  content: '·';
+  position: absolute;
+  left: 3px;
+}

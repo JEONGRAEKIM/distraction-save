@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>읽을 책 등록</title>
+  <link rel="stylesheet" href="reader-setup.css">
+</head>
+<body>
+  <main id="page">
+    <header class="head">
+      <h1>읽을 책</h1>
+      <p class="head-sub">한 권만 등록해 두면, 유튜브를 누를 때마다 지난번 읽던 곳이 그대로 열립니다.</p>
+    </header>
+
+    <section id="current" class="card current" hidden>
+      <div class="current-icon">📖</div>
+      <div class="current-text">
+        <div id="current-title" class="current-title"></div>
+        <div id="current-meta" class="current-meta"></div>
+      </div>
+      <button id="remove-btn" class="ghost-btn" type="button">삭제</button>
+    </section>
+
+    <section id="drop" class="card drop">
+      <input type="file" id="file-input" accept=".epub,.pdf" hidden>
+      <div class="drop-icon">＋</div>
+      <div class="drop-title">EPUB 또는 PDF 파일을 여기에 놓으세요</div>
+      <div class="drop-sub">클릭해서 직접 고를 수도 있습니다</div>
+    </section>
+
+    <section id="progress" class="card progress" hidden>
+      <div id="progress-label" class="progress-label">책을 펼치는 중…</div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+      <p class="progress-note">창을 닫지 말고 잠시만 기다려 주세요.</p>
+    </section>
+
+    <p id="message" class="message" hidden></p>
+
+    <section class="note">
+      <h2>알아두면 좋은 것</h2>
+      <ul>
+        <li>새 책을 등록하면 이전 책과 읽던 위치는 지워집니다.</li>
+        <li>EPUB은 본문의 그림도 함께 가져옵니다. 편집 디자인(글꼴·여백)은 들어오지 않습니다.</li>
+        <li>PDF는 아직 글자만 가져옵니다. 그림은 빠집니다.</li>
+        <li>스캔한 이미지 PDF는 글자 정보가 없어 등록할 수 없습니다.</li>
+        <li>PDF는 2단 편집이나 표가 많으면 문단이 어긋날 수 있습니다. EPUB이 더 정확합니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="vendor/pdf.min.js"></script>
+  <script src="book-store.js"></script>
+  <script src="book-parse.js"></script>
+  <script src="reader-setup.js"></script>
+</body>
+</html>

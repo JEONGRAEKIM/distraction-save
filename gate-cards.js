@@ -1,10 +1,16 @@
 'use strict';
 
-// ── 찰나 카드 (영어 / 계획) ──────────────────────────────────────────────
+// ── 찰나 카드 (책 / 영어 / 계획) ─────────────────────────────────────────
 //
-// 카드는 매번 뜨고, 기존 이유 카드 → 영어 → 계획 순으로 번갈아 돈다.
+// 카드는 매번 뜨고, 책 → 영어 → 계획 순으로 번갈아 돈다. 책이 등록되어
+// 있지 않으면 책 차례는 건너뛴다 — 없는 책을 등록하라고 사흘에 한 번씩
+// 가로막는 건 이 확장이 하지 않기로 한 종류의 재촉이다. 대신 상단 탭에는
+// 항상 있어서, 원할 때 직접 찾아 들어갈 수 있다.
 //
-// 영어·계획 카드 둘 다 이유 카드와 같은 원칙을 쓴다: X·ESC·바깥클릭·
+// 상단 탭은 책갈피처럼 쓴다. 어떤 카드가 떴든 손으로 옮겨갈 수 있고,
+// 옮겨갈 때 떠나는 카드의 내용(계획 메모, 읽던 위치)은 반드시 먼저 저장한다.
+//
+// 영어·계획 카드 둘 다 같은 원칙을 쓴다: X·ESC·바깥클릭·
 //   "돌아가기 · 1P 받기"는 전부 참음 포인트를 적립하고 유튜브로 들어가지
 //   않는다. "입장하기"만 명시적으로 눌러야 들어간다. 그래서 참는 쪽은
 //   화려하게, 입장 쪽은 조용하게 디자인한다 — 유튜브 자체를 막는 게
@@ -12,31 +18,59 @@
 //   게 더 끌리는 선택"이 되도록 만드는 것. 계획을 적는 것 자체는 이
 //   선택과 별개로 항상 저장된다(입장하든 참든 상관없이).
 
-const DS_GATE_ROTATION = ['reason', 'english', 'plan'];
+const DS_GATE_ROTATION = ['book', 'english', 'plan'];
+
+const DS_GATE_TABS = [
+  { type: 'book', label: '책' },
+  { type: 'english', label: '영어' },
+  { type: 'plan', label: '계획' },
+];
 
 const dsGate = {
   rotationIndex: 0,
-  currentType: 'reason',
+  currentType: 'english',
   dailyPlan: dsGateDefaultDailyPlan(),
   lastWord: null,
+  bookMeta: null,
+  bookPos: null,
   escHandler: null,
   saveTimer: null,
   routed: false,
 };
 
 // 카드는 클릭 즉시 그려져야 하므로 저장소는 미리 메모리에 올려둔다.
+// 책 본문은 여기 없다(확장 origin의 IndexedDB에 있다). 제목과 읽던 위치처럼
+// 카드가 뜨는 그 순간 이미 알고 있어야 하는 것만 가져온다.
 try {
   if (globalThis.chrome?.storage?.local) {
-    chrome.storage.local.get(['gateRotationIndex', 'gateDailyPlan', 'gateLastWord'], (result) => {
-      if (chrome.runtime?.lastError) return;
-      // 저장소가 늦게 도착했는데 이미 카드가 한 번 떴다면 순서를 되돌리지 않는다.
-      if (!dsGate.routed) dsGate.rotationIndex = Number(result?.gateRotationIndex) || 0;
-      dsGate.dailyPlan = dsGateNormalizeDailyPlan(result?.gateDailyPlan);
-      dsGate.lastWord = typeof result?.gateLastWord === 'string' ? result.gateLastWord : null;
-    });
+    chrome.storage.local.get(
+      ['gateRotationIndex', 'gateDailyPlan', 'gateLastWord', 'bookMeta', 'bookPos'],
+      (result) => {
+        if (chrome.runtime?.lastError) return;
+        // 저장소가 늦게 도착했는데 이미 카드가 한 번 떴다면 순서를 되돌리지 않는다.
+        if (!dsGate.routed) dsGate.rotationIndex = Number(result?.gateRotationIndex) || 0;
+        dsGate.dailyPlan = dsGateNormalizeDailyPlan(result?.gateDailyPlan);
+        dsGate.lastWord = typeof result?.gateLastWord === 'string' ? result.gateLastWord : null;
+        dsGate.bookMeta = result?.bookMeta || null;
+        dsGate.bookPos = result?.bookPos || null;
+      }
+    );
   }
 } catch (_error) {
   // 저장소를 못 읽어도 카드는 기본값으로 동작해야 한다.
+}
+
+// 설정 페이지에서 책을 등록·삭제하면 열려 있는 탭들도 바로 따라와야 한다.
+try {
+  if (globalThis.chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return;
+      if (changes.bookMeta) dsGate.bookMeta = changes.bookMeta.newValue || null;
+      if (changes.bookPos) dsGate.bookPos = changes.bookPos.newValue || null;
+    });
+  }
+} catch (_error) {
+  // 못 붙어도 다음에 카드가 뜰 때 최신값을 읽는다.
 }
 
 function dsGateSave(patch) {
@@ -52,12 +86,18 @@ function dsGateSave(patch) {
 
 // ── 통과 ────────────────────────────────────────────────────────────────
 
+function dsGateDisarmEscape() {
+  if (!dsGate.escHandler) return;
+  document.removeEventListener('keydown', dsGate.escHandler, true);
+  dsGate.escHandler = null;
+}
+
+// 카드를 떠날 때(닫기·통과·탭 이동) 항상 지나는 길목. 여기서 저장하지 않으면
+// 적어둔 계획이나 읽던 위치가 그대로 날아간다.
 function dsGateCleanup() {
   if (dsGate.currentType === 'plan') dsGateFlushDailyPlan();
-  if (dsGate.escHandler) {
-    document.removeEventListener('keydown', dsGate.escHandler, true);
-    dsGate.escHandler = null;
-  }
+  if (dsGate.currentType === 'book' && typeof dsBookFlush === 'function') dsBookFlush();
+  dsGateDisarmEscape();
 }
 
 // 명시적으로 '입장하기'를 눌렀을 때만 쓴다. 절대 다른 경로에서 부르지 않는다.
@@ -66,17 +106,21 @@ function dsGatePass() {
   hnNavigate(hn.pendingUrl);
 }
 
-// 명시적으로 '참기(포인트 받기)'를 골랐을 때 쓴다. 이유 카드가 이미 쓰던
-// 참음 포인트 적립(hnAwardResistPoint → hnShowResistConfirm)을 그대로 재사용한다.
+// 명시적으로 '참기(포인트 받기)'를 골랐을 때 쓴다.
+// 참음 포인트 적립(hnAwardResistPoint → hnShowResistConfirm)을 재사용한다.
 function dsGateResist() {
   dsGateCleanup();
   hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
 }
 
 // ESC/바깥 클릭처럼 '어느 쪽인지 명시하지 않은 종료'가 들어오는 경로용 분기.
-// 영어·계획 카드 둘 다 참기가 기본값이다(이유 카드와 같은 원칙).
+// 영어·계획 카드 둘 다 참기가 기본값이다.
 function dsGateExit() {
-  if (dsGate.currentType === 'plan' || dsGate.currentType === 'english') {
+  // 책 카드에서 목차를 펼쳐둔 상태면 ESC는 목차만 닫는다. 목차를 보려다
+  // 카드까지 닫히면 읽던 흐름이 끊긴다.
+  if (typeof dsBookHandleEscape === 'function' && dsBookHandleEscape()) return;
+
+  if (DS_GATE_ROTATION.includes(dsGate.currentType)) {
     dsGateResist();
     return;
   }
@@ -84,7 +128,7 @@ function dsGateExit() {
 }
 
 function dsGateArmEscape() {
-  dsGateCleanup();
+  dsGateDisarmEscape();
   dsGate.escHandler = (event) => {
     if (event.key !== 'Escape') return;
     event.preventDefault();
@@ -96,7 +140,6 @@ function dsGateArmEscape() {
 
 // content.js의 오버레이 바깥 클릭 처리에서 호출된다.
 function dsGateHandleOutsideClick() {
-  if (dsGate.currentType === 'reason') return false;
   dsGateExit();
   return true;
 }
@@ -105,25 +148,101 @@ function dsGateHandleOutsideClick() {
 //
 // 모달 셸의 폭죽 등장 연출은 카드 종류와 상관없이 항상 유지한다.
 
-function dsGateRoute() {
-  const type = DS_GATE_ROTATION[dsGate.rotationIndex % DS_GATE_ROTATION.length] || 'reason';
-  dsGate.currentType = type;
-  dsGate.routed = true;
+const DS_GATE_TAB_STYLE =
+  // 높이 한계를 셸이 직접 쥔다. 카드마다 vh로 따로 계산하면 탭 바 높이를
+  // 빠뜨리기 쉽고, 그러면 #hn-card의 overflow:hidden에 맨 아래 '입장하기'가
+  // 잘려 나간다(실제로 그랬다). 여기서 한 번 막아두면 어떤 카드든 안전하다.
+  '#hn-card{display:flex;flex-direction:column;max-height:calc(100vh - 34px)}' +
+  '#dsg-slot{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}' +
+  '.dsg-tabs{flex-shrink:0;display:flex;align-items:center;gap:3px;padding:7px 8px;background:#0D0B1C;' +
+  'border-bottom:1px solid rgba(255,255,255,0.07)}' +
+  '.dsg-tab{flex:1;padding:9px 6px;border:none;border-radius:11px;background:none;cursor:pointer;' +
+  'font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;' +
+  'font-size:12.5px;font-weight:700;color:rgba(244,238,255,0.34);' +
+  'transition:background .15s,color .15s}' +
+  '.dsg-tab:hover{color:rgba(244,238,255,0.72)}' +
+  '.dsg-tab.dsg-tab-on{background:rgba(255,255,255,0.1);color:#FDF8EE}';
 
-  dsGate.rotationIndex = (dsGate.rotationIndex + 1) % DS_GATE_ROTATION.length;
-  dsGateSave({ gateRotationIndex: dsGate.rotationIndex });
+// 각 카드는 #hn-card가 아니라 탭 바 아래의 이 칸에 그린다.
+// 카드가 직접 #hn-card를 덮어쓰면 탭 바까지 같이 지워진다.
+function dsGateSlot() {
+  return hnRoot()?.getElementById('dsg-slot') || null;
+}
 
-  if (type === 'english') {
-    dsGateShowEnglishCard();
+function dsGateMountShell() {
+  const root = hnRoot();
+  const card = root?.getElementById('hn-card');
+  if (!card) return false;
+
+  const tabsHtml = DS_GATE_TABS.map((tab) =>
+    '<button class="dsg-tab" data-tab="' + tab.type + '" type="button">' + esc(tab.label) + '</button>'
+  ).join('');
+
+  card.innerHTML =
+    '<style>' + DS_GATE_TAB_STYLE + '</style>' +
+    '<div class="dsg-tabs">' + tabsHtml + '</div>' +
+    '<div id="dsg-slot"></div>';
+
+  root.querySelectorAll('.dsg-tab').forEach((button) => {
+    button.addEventListener('click', () => dsGateSwitchTab(button.dataset.tab));
+  });
+
+  return true;
+}
+
+function dsGateMarkActiveTab(type) {
+  const root = hnRoot();
+  if (!root) return;
+  root.querySelectorAll('.dsg-tab').forEach((button) => {
+    button.classList.toggle('dsg-tab-on', button.dataset.tab === type);
+  });
+}
+
+function dsGateShow(type) {
+  // gate-book.js가 실려 있지 않으면 책 탭은 없는 셈 친다. 탭 표시와 실제로
+  // 그려진 카드가 어긋나지 않게 여기서 한 번에 결정한다.
+  const resolved = type === 'book' && typeof dsGateShowBookCard !== 'function' ? 'english' : type;
+
+  dsGate.currentType = resolved;
+  dsGateMarkActiveTab(resolved);
+
+  if (resolved === 'book') {
+    dsGateShowBookCard();
     return;
   }
-
-  if (type === 'plan') {
+  if (resolved === 'plan') {
     dsGateShowPlanCard();
     return;
   }
+  dsGateShowEnglishCard();
+}
 
-  hnShowReasonCard();
+function dsGateSwitchTab(type) {
+  if (!type || type === dsGate.currentType) return;
+  // 떠나는 카드의 내용을 먼저 저장한다. 새 카드가 ESC를 다시 건다.
+  dsGateCleanup();
+  dsGateShow(type);
+}
+
+function dsGateRoute() {
+  if (!dsGateMountShell()) return;
+
+  dsGate.routed = true;
+
+  // 책이 없으면 책 차례는 건너뛴다. 등록을 재촉하지 않기 위한 것이고,
+  // 탭으로는 언제든 들어갈 수 있다.
+  let type = 'english';
+  for (let step = 0; step < DS_GATE_ROTATION.length; step++) {
+    const candidate = DS_GATE_ROTATION[dsGate.rotationIndex % DS_GATE_ROTATION.length];
+    dsGate.rotationIndex = (dsGate.rotationIndex + 1) % DS_GATE_ROTATION.length;
+    if (candidate !== 'book' || dsGate.bookMeta) {
+      type = candidate;
+      break;
+    }
+  }
+
+  dsGateSave({ gateRotationIndex: dsGate.rotationIndex });
+  dsGateShow(type);
 }
 
 // ── 영어 카드 ───────────────────────────────────────────────────────────
@@ -226,13 +345,13 @@ function dsGateShowEnglishCard() {
   const root = hnRoot();
   if (!root) return;
 
-  const card = root.getElementById('hn-card');
-  if (!card) return;
+  const slot = dsGateSlot();
+  if (!slot) return;
 
   const stage = root.getElementById('hn-stage');
   if (stage) {
     stage.style.width = 'min(92vw, 440px)';
-    stage.style.padding = '30px 16px';
+    stage.style.padding = '16px';
   }
 
   const entry = dsGatePickWord();
@@ -255,7 +374,7 @@ function dsGateShowEnglishCard() {
     '</div>'
   ).join('');
 
-  card.innerHTML =
+  slot.innerHTML =
     '<style>' + DS_GATE_WORD_STYLE + '</style>' +
     '<div class="dsg-word">' +
     '<div class="dsg-word-body">' +
@@ -405,7 +524,11 @@ function dsGatePriorityRowHtml(i) {
 const DS_GATE_PLAN_STYLE =
   // 내용이 짧아도 카드가 내용 크기로 쪼그라들지 않도록 최소 높이를 준다.
   // 남는 세로 공간은 flex:1인 밤(메모) 영역이 자연스럽게 흡수한다.
-  '.dsg-plan{display:flex;flex-direction:column;min-height:min(72vh,560px);max-height:min(88vh,700px)}' +
+  '.dsg-plan{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;height:min(78vh,620px)}' +
+  // 새벽·메모 영역을 통째로 한 번만 스크롤시키고 발치(입장하기)는 고정한다.
+  // 예전처럼 각 칸이 min-height로 버티면 화면이 낮을 때 발치가 밀려 잘린다.
+  '.dsg-plan-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;' +
+  'display:flex;flex-direction:column;background:#100D2A}' +
   '.dsg-plan-dawn{background:linear-gradient(180deg,#FFF6EA 0%,#FCE0B8 100%);padding:26px 26px 18px;flex-shrink:0}' +
   '.dsg-plan-daterow{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}' +
   '.dsg-plan-date{font-family:Georgia,"Nanum Myeongjo",serif;font-weight:700;font-size:24px;color:#2B2450}' +
@@ -438,7 +561,7 @@ const DS_GATE_PLAN_STYLE =
   '.dsg-plan-horizon{height:26px;flex-shrink:0;' +
   'background:linear-gradient(180deg,#FCE0B8 0%,#2A2560 100%);position:relative}' +
   '.dsg-plan-horizon svg{position:absolute;top:-1px;left:0;width:100%;height:28px;display:block}' +
-  '.dsg-plan-night{flex:1 1 auto;min-height:200px;overflow-y:auto;' +
+  '.dsg-plan-night{flex:1 0 auto;min-height:180px;' +
   'background:linear-gradient(180deg,#2A2560 0%,#1B1740 55%,#100D2A 100%);padding:20px 24px 8px;' +
   'display:flex;flex-direction:column}' +
   '.dsg-plan-memolabel{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;' +
@@ -469,23 +592,24 @@ function dsGateShowPlanCard() {
   const root = hnRoot();
   if (!root) return;
 
-  const card = root.getElementById('hn-card');
-  if (!card) return;
+  const slot = dsGateSlot();
+  if (!slot) return;
 
   // 계획 카드는 정보량이 많아 다른 찰나 카드보다 무대를 넓고 크게 쓴다.
   const stage = root.getElementById('hn-stage');
   if (stage) {
     stage.style.width = 'min(94vw, 500px)';
-    stage.style.padding = '30px 16px';
+    stage.style.padding = '16px';
   }
 
   const now = new Date();
   const dateLabel = (now.getMonth() + 1) + '월 ' + now.getDate() + '일';
   const weekdayLabel = ['일', '월', '화', '수', '목', '금', '토'][now.getDay()] + '요일';
 
-  card.innerHTML =
+  slot.innerHTML =
     '<style>' + DS_GATE_PLAN_STYLE + '</style>' +
     '<div class="dsg-plan">' +
+    '<div class="dsg-plan-scroll">' +
     '<div class="dsg-plan-dawn">' +
     '<div class="dsg-plan-daterow">' +
     '<span class="dsg-plan-date">' + esc(dateLabel) + '</span>' +
@@ -515,6 +639,7 @@ function dsGateShowPlanCard() {
     '<textarea id="dsg-memo" class="dsg-plan-memo" placeholder="머릿속에 떠오르는 모든 것을 적어보세요">' +
     esc(dsGate.dailyPlan.memo) + '</textarea>' +
     '<div class="dsg-plan-hint">정리하지 않아도 괜찮아요</div>' +
+    '</div>' +
     '</div>' +
     '<div class="dsg-plan-foot">' +
     '<button id="dsg-resist" class="dsg-plan-resist" type="button">' +

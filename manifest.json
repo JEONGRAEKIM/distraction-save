@@ -5,6 +5,7 @@
   "description": "깔아두면 시간 낭비가 줄고, 가끔 포인트도 생기는 브라우저 안전장치",
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "tabs",
     "activeTab",
     "alarms"
@@ -21,7 +22,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js", "gate-words.js", "gate-cards.js"],
+      "js": ["content.js", "gate-words.js", "gate-cards.js", "gate-book.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

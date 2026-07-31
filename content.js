@@ -636,14 +636,6 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 // ── Honest Nudge: 유튜브 영상 클릭 인텐트 모달 ────────────────────────────────
 
-const HN_REASONS = [
-  { emoji: '🌀', label: '머리가 복잡해요', bg: '#ede9fe', color: '#6d28d9' },
-  { emoji: '🌙', label: '외로워요', bg: '#fce7f3', color: '#be185d' },
-  { emoji: '😪', label: '지루해요', bg: '#fef3c7', color: '#b45309' },
-  { emoji: '🙈', label: '해야 할 일을 피하고 싶어요', bg: '#e0f2fe', color: '#0369a1' },
-  { emoji: '👀', label: '썸네일이 너무 궁금해요', bg: '#dcfce7', color: '#15803d' },
-];
-
 const hn = {
   pendingUrl: null,
   pendingHost: '',
@@ -674,25 +666,6 @@ function hnNavigate(url) {
   window.location.href = full;
 }
 
-function hnUpdatePointBadge(root, todayPoints) {
-  const badge = root.getElementById('hn-point-badge');
-  if (badge && typeof todayPoints === 'number') {
-    badge.textContent = '오늘 참은 포인트: ' + todayPoints + 'P';
-  }
-}
-
-function hnRefreshPointBadge(root) {
-  try {
-    if (!globalThis.chrome?.storage?.local) return;
-    chrome.storage.local.get(['stats'], (result) => {
-      if (chrome.runtime?.lastError) return;
-      hnUpdatePointBadge(root, result?.stats?.todayPoints || 0);
-    });
-  } catch (_error) {
-    // best-effort only
-  }
-}
-
 function hnAwardResistPoint(afterFn) {
   try {
     chrome.runtime.sendMessage({
@@ -707,49 +680,6 @@ function hnAwardResistPoint(afterFn) {
   } catch (_error) {
     afterFn(undefined);
   }
-}
-
-function hnShowReasonCard() {
-  const root = hnRoot();
-  if (!root) return;
-
-  const card = root.getElementById('hn-card');
-  card.innerHTML =
-    '<div style="padding:28px 24px;position:relative">' +
-    '<button id="hn-close" style="position:absolute;top:14px;right:14px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;border-radius:50%;border:none;cursor:pointer;color:#6b7280;font-size:16px;font-family:inherit">✕</button>' +
-    '<div style="text-align:center;margin-bottom:20px">' +
-    '<div style="font-size:40px;margin-bottom:10px">📱</div>' +
-    '<h2 style="font-size:17px;font-weight:700;color:#111827;margin:0;line-height:1.5">지금 유튜브를 열려는<br>이유는 무엇인가요?</h2>' +
-    '</div>' +
-    '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px">' +
-    HN_REASONS.map((reason) => (
-      '<button type="button" class="hn-reason-btn" style="width:100%;padding:18px 16px;background:' + reason.bg + ';color:' + reason.color + ';border-radius:18px;font-weight:800;font-size:16px;border:none;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04)">' +
-      '<span style="font-size:22px;line-height:1">' + reason.emoji + '</span>' +
-      '<span>' + esc(reason.label) + '</span>' +
-      '</button>'
-    )).join('') +
-    '</div>' +
-    '<div id="hn-point-badge" style="text-align:center;font-size:13px;color:#2563eb;font-weight:700;background:#eff6ff;border-radius:999px;padding:8px 12px;margin-bottom:14px">오늘 참은 포인트: 0P</div>' +
-    '<div style="text-align:center">' +
-    '<button id="hn-enter-now" style="background:none;border:none;color:#9ca3af;font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:6px">유튜브 입장하기 →</button>' +
-    '</div>' +
-    '</div>';
-
-  hnRefreshPointBadge(root);
-
-  root.getElementById('hn-close').addEventListener('click', () => {
-    hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
-  });
-
-  root.querySelectorAll('.hn-reason-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
-    });
-  });
-
-  root.getElementById('hn-enter-now').addEventListener('click', () => {
-    hnNavigate(hn.pendingUrl);
-  });
 }
 
 function hnShowResistConfirm(todayPoints) {
@@ -880,11 +810,11 @@ function buildHonestNudgeModal(targetUrl) {
     hnAwardResistPoint((todayPoints) => hnShowResistConfirm(todayPoints));
   });
 
-  // 이유 카드 → 영어 카드 → 계획 카드 순으로 번갈아 노출한다.
+  // 영어 카드 → 계획 카드 순으로 번갈아 노출한다.
   if (typeof dsGateRoute === 'function') {
     dsGateRoute();
   } else {
-    hnShowReasonCard();
+    hnRemove();
   }
 }
 

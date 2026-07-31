@@ -146,6 +146,36 @@ body {
 
 .task-input::placeholder { color: #aab3ba; }
 
+.book-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #e6dcc6;
+  border-radius: 10px;
+  background: #F7F1E4;
+  cursor: pointer;
+  font-family: Georgia, 'Nanum Myeongjo', serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2A2418;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.book-btn:hover { background: #F1E9D7; }
+
+#book-btn-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-btn-arrow { flex-shrink: 0; color: #9A8E76; }
+
 .footer {
   border-top: 1px solid rgba(16, 33, 45, 0.08);
   padding-top: 12px;
